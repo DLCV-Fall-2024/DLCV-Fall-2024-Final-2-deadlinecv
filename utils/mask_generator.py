@@ -73,7 +73,7 @@ def visualize_boundings(images:List[Image.Image], bounding_boxes:List[dict]):
     # prepare figure
     num_rows = np.ceil(np.sqrt(len(images))).astype(int)
     num_columns = np.ceil(len(images) / num_rows).astype(int)
-    _, axes = plt.subplots(num_rows, num_columns)
+    _, axes = plt.subplots(num_rows, num_columns, squeeze=False)
     axes = axes.flatten()
     # plot images
     for i, (image, box) in enumerate(zip(images, bounding_boxes)):
@@ -145,7 +145,7 @@ def visualize_masks(mask_batch:List[List[np.ndarray]], image_batch:List[Image.Im
     # prepare figure
     num_rows = np.ceil(np.sqrt(len(image_batch))).astype(int)
     num_columns = np.ceil(len(image_batch) / num_rows).astype(int)
-    _, axes = plt.subplots(num_rows, num_columns)
+    _, axes = plt.subplots(num_rows, num_columns, squeeze=False)
     axes = axes.flatten()
     # plot images
     for i, (masks, image, classes) in enumerate(zip(mask_batch, image_batch, class_batch)):
