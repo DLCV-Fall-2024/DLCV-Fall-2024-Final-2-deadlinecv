@@ -257,6 +257,4 @@ if __name__ == "__main__":
     del detection_model, detection_processor, inpaint_pipeline
     torch.cuda.empty_cache()
     print("[inference] Memory released.")
-    # save results
-    os.makedirs(os.path.join(args.output_dir, "final_images"), exist_ok=True)
     print("[inference] Inference completed.")
