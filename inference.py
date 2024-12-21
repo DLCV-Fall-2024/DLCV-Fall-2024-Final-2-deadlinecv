@@ -230,7 +230,6 @@ if __name__ == "__main__":
             visualize_masks(mask_batch, image_batch, class_batch)
         # impanting concepts
         prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
-        print(prompts)
         final_images = impaint_concept(
             image_batch, prompts, mask_batch,
             pipeline=inpaint_pipeline, steps=args.inpaint_steps,
