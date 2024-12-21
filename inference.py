@@ -110,7 +110,7 @@ def parse_args():
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
-    parser.add_argument("--seed", type=int, default=4219889, help="Random seed for reproducibility.")
+    parser.add_argument("--seed", type=int, default=1126, help="Random seed for reproducibility.")
     parser.add_argument("--init_steps", type=int, default=25, help="Number of steps for initial image generation.")
     parser.add_argument("--inpaint_steps", type=int, default=25, help="Number of steps for inpainting.")
     parser.add_argument("--inpaint_strength", type=float, default=1, help="Strength of inpainting.")
@@ -121,6 +121,8 @@ def parse_args():
     parser.add_argument("--height", type=int, default=512, help="Height of the generated images.")
     parser.add_argument("--save_process", action="store_true", help="Save the produced images (ex. masks) during the process.")
     parser.add_argument("--show_process", action="store_true", help="Show the produced images (ex. masks) during the process.")
+    parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-2-1-base", help="Stable Diffusion model name or path.")
+    parser.add_argument("--inpaint_model", type=str, default="stabilityai/stable-diffusion-2-inpainting", help="Stable Diffusion inpainting model name or path.")
     args = parser.parse_args()
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
@@ -163,8 +165,8 @@ if __name__ == "__main__":
     ## Generate Initial Images
     # load diffusion model
     print("[inference] Loading Stable Diffusion pipeline...")
-    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="scheduler")
-    diffusion_pipeline = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=diffusion_scheduler, torch_dtype=args.dtype)
+    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
+    diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
     # load textual inversions
     inversion_dir = args.inversion_dir
     for inv_dir in os.listdir(inversion_dir):
@@ -190,7 +192,7 @@ if __name__ == "__main__":
     print("[inference] Object detection model loaded successfully.")
     # load inpainting model
     print("[inference] Loading Stable Diffusion inpainting pipeline...")
-    inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained("stabilityai/stable-diffusion-2-inpainting", torch_dtype=args.dtype)
+    inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=args.dtype)
     # load textual inversions
     for inv_dir in os.listdir(inversion_dir):
         inv_path = os.path.join(inversion_dir, inv_dir)
