@@ -214,6 +214,7 @@ if __name__ == "__main__":
             # load inversion for both text encoders
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
+            print(f"[inference] Textual inversion loaded for {token_name}.")
         print("[inference] Pipeline loaded successfully.")
     else:
         print("[inference] Loading Stable Diffusion 2 pipeline...")
@@ -337,6 +338,7 @@ if __name__ == "__main__":
         # impanting concepts
         style_prompt = f" in {style_token} style." if style_token is not None else ""
         prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
+        print(f"[inference] Impainting for prompt {prompts}...")
         final_images = impaint_concept(
             image_batch, prompts, mask_batch, 
             pipeline=inpaint_pipeline, size=(args.width, args.height),
