@@ -211,8 +211,7 @@ if __name__ == "__main__":
     # Generate Initial Images
     init_images = generate_stable_diffusion(
         initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
-        batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
-        device=device)
+        batch_size=args.batch_size, steps=args.init_steps)
     # save initial images
     if args.save_process:
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
@@ -308,9 +307,8 @@ if __name__ == "__main__":
         prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
         final_images = impaint_concept(
             image_batch, prompts, mask_batch, 
-            model=args.inpaint_model, width=args.width, height=args.height, inversion_dir=inversion_dir, steps=args.inpaint_steps,
-            attention_slicing=args.attn_slicing, strength=args.inpaint_strength,
-            device=device, dtype=args.dtype)
+            pipeline=inpaint_pipeline, size=(args.width, args.height),
+            steps=args.inpaint_steps, strength=args.inpaint_strength)
         # save results
         os.makedirs(os.path.join(args.output_dir, f"{id}"), exist_ok=True)
         for i, image in enumerate(final_images):
