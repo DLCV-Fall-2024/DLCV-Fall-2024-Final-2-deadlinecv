@@ -79,6 +79,7 @@ def read_prompts_json(json_path:str)->List[dict]:
         prompt_ids = list(data.keys())
         initial_prompts = []
         object_tokens = []
+        style_tokens = []
         for prompt_id in prompt_ids:
             # extract prompts
             prompt_token = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
@@ -91,12 +92,14 @@ def read_prompts_json(json_path:str)->List[dict]:
             # save the results
             initial_prompts.append(initial_prompt)
             object_tokens.append(obj_tok)
+            style_tokens.append(sty_tok)
 
         # return the results
         custom_prompts = {
             "id": prompt_ids,
             "initial_prompts": initial_prompts,
             "object_tokens": object_tokens,
+            "style_tokens": style_tokens
         }
     return custom_prompts
 
@@ -106,6 +109,7 @@ def parse_args():
     parser.add_argument("--prompt", type=str, default="A dog and a cat.", help="List of prompts for image generation.")
     parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog>", "<cat>"], help="List of special tokens for textual inversion.")
     parser.add_argument("--init_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
@@ -144,7 +148,8 @@ def parse_args():
         prompt_info = {
             "id": [0],
             "initial_prompts": [args.prompt],
-            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}]
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}],
+            "style_tokens": [args.style_special_token]
         }
     return args, prompt_info
 
@@ -159,8 +164,10 @@ if __name__ == "__main__":
     prompt_ids = prompt_info["id"]
     initial_prompts = prompt_info["initial_prompts"]
     object_tokens = prompt_info["object_tokens"]
+    style_tokens = prompt_info["style_tokens"]
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
+    print(f"[inference] Style tokens: {style_tokens}")
 
     ## Generate Initial Images
     # load diffusion model
@@ -200,10 +207,10 @@ if __name__ == "__main__":
         inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
     print("[inference] Pipeline loaded successfully.")
     # loop through the prompts
-    for id, image_batch, object_tokens in zip(prompt_ids, init_images, object_tokens):
+    for id, image_batch, object_token, style_token in zip(prompt_ids, init_images, object_tokens, style_tokens):
         # upack object tokens
-        classes = object_tokens["init_tokens"]
-        special_tokens = object_tokens["special_tokens"]
+        classes = object_token["init_tokens"]
+        special_tokens = object_token["special_tokens"]
         # detect bounding boxes
         class_batch = [classes]*len(image_batch)
         bounding_batch = zero_shot_detection(image_batch, class_batch, processor=detection_processor, model=detection_model, device=device)
@@ -231,7 +238,9 @@ if __name__ == "__main__":
         if args.show_process:
             visualize_masks(mask_batch, image_batch, class_batch)
         # impanting concepts
-        prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
+        style_prompt = f"in {style_token} style." if style_token is not None else ""
+        prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
+        print(f"[inference] Impainting prompt: {prompts}")
         final_images = impaint_concept(
             image_batch, prompts, mask_batch,
             pipeline=inpaint_pipeline, steps=args.inpaint_steps,
