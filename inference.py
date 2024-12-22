@@ -9,29 +9,38 @@ from utils.mask_generator import zero_shot_detection, generate_masks, visualize_
 from utils.concept_impainter import impaint_concept
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
-def get_initial_tokens(prompt_token:str, prompt_eval:str, special_tokens:List[str]):
+def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     '''
     Get the initial tokens which replace the special tokens by comparing the prompt with and without special tokens.
     Args:
         prompt_token (str): Prompt with special tokens.
         prompt_eval (str): Prompt without special tokens.
-        special_tokens (List[str]): List of special tokens.
     Returns:
-        List[str]: List of initial tokens corresponding to the special tokens.
+        Tuple[dict, dict]: A tuple of dictionaries containing the initial tokens and special tokens for objects and style.
     '''
     # use queues to store the words from the prompts
     prompt_token_words = deque(prompt_token.split())
     prompt_eval_words = deque(prompt_eval.split())
-    initial_tokens = special_tokens.copy()
     # iterate through the words to find the initial tokens
+    # temp variables
     target_token = None
     init_token = ""
+    # result variables
+    obj_init_tokens = []
+    obj_special_tokens = []
+    style_init_token = None
+    style_special_token = None
     while prompt_token_words and prompt_eval_words:
         if prompt_token_words[0] == prompt_eval_words[0]: # words match, pass
             if target_token is not None: # save the initial token if it exists
-                target_index = special_tokens.index(target_token)
-                initial_tokens[target_index] = init_token
+                if prompt_token_words[0] == "style": # handle style tokens
+                    style_init_token = init_token
+                    style_special_token = target_token
+                else: # handle object tokens
+                    obj_init_tokens.append(init_token)
+                    obj_special_tokens.append(target_token)
                 target_token = None
                 init_token = ""
             prompt_token_words.popleft()
@@ -43,10 +52,18 @@ def get_initial_tokens(prompt_token:str, prompt_eval:str, special_tokens:List[st
             init_token += " " + prompt_eval_words.popleft() # continuation of initial token
     # save the last initial token if it exists
     if target_token is not None:
-        target_index = special_tokens.index(target_token)
-        initial_tokens[target_index] = init_token
-
-    return initial_tokens
+        obj_init_tokens.append(init_token)
+        obj_special_tokens.append(target_token)
+    # return the results
+    obj_dict = {
+        "init_tokens": obj_init_tokens,
+        "special_tokens": obj_special_tokens,
+    }
+    style_dict = {
+        "init_token": style_init_token,
+        "special_token": style_special_token,
+    }
+    return obj_dict, style_dict
 
 def read_prompts_json(json_path:str)->List[dict]:
     '''
@@ -60,92 +77,139 @@ def read_prompts_json(json_path:str)->List[dict]:
         data = json.load(f)
         # extract information
         prompt_ids = list(data.keys())
-        prompts_token = [data[prompt_id]["prompt"].rstrip('.').replace(">,", ">") for prompt_id in prompt_ids]
-        prompts_eval = [data[prompt_id]["prompt_4_clip_eval"].rstrip('.') for prompt_id in prompt_ids]
-        special_tokens = [data[prompt_id]["token_name"] for prompt_id in prompt_ids]
-        initial_tokens = [get_initial_tokens(prompts_token[i], prompts_eval[i], special_tokens[i]) for i in range(len(prompt_ids))]
-        # create custom prompts
-        custom_prompts = [{
-            "id": prompt_ids[i],
-            "prompt": prompts_token[i],
-            "prompt_eval": prompts_eval[i],
-            "special_tokens": special_tokens[i],
-            "initial_tokens": initial_tokens[i]
-        } for i in range(len(prompt_ids))]
+        initial_prompts = []
+        object_tokens = []
+        for prompt_id in prompt_ids:
+            # extract prompts
+            prompt_token = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
+            initial_prompt = data[prompt_id]["prompt_4_clip_eval"].rstrip('.')
+            # get the initial tokens
+            obj_tok, sty_tok = get_initial_tokens(prompt_token, initial_prompt)
+            # handle style prompt
+            if sty_tok["init_token"] is not None:
+                initial_prompt = initial_prompt.replace(sty_tok["init_token"], sty_tok["special_token"])
+            # save the results
+            initial_prompts.append(initial_prompt)
+            object_tokens.append(obj_tok)
+
+        # return the results
+        custom_prompts = {
+            "id": prompt_ids,
+            "initial_prompts": initial_prompts,
+            "object_tokens": object_tokens,
+        }
     return custom_prompts
 
 def parse_args():
+    # arguments
     parser = argparse.ArgumentParser(description="Inference script for object detection.")
-    parser.add_argument("--prompts", nargs="+", type=str, default=["A dog and a cat."], help="List of prompts for image generation.")
-    parser.add_argument("--special_tokens", nargs="+", type=str, default=[], help="List of special tokens for textual inversion.")
-    parser.add_argument("--initial_tokens", nargs="+", type=str, default=[], help="List of initial tokens for textual inversion.")
-    parser.add_argument("--image_per_prompt", type=int, default=2, help="Number of images to generate per prompt.")
+    parser.add_argument("--prompt", type=str, default="A dog and a cat.", help="List of prompts for image generation.")
+    parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog>", "<cat>"], help="List of special tokens for textual inversion.")
+    parser.add_argument("--init_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
-    parser.add_argument("--inversion_paths", nargs="+", type=str, default=[], help="List of paths to textual inversion embeddings.")
+    parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
+    parser.add_argument("--seed", type=int, default=1126, help="Random seed for reproducibility.")
+    parser.add_argument("--init_steps", type=int, default=25, help="Number of steps for initial image generation.")
+    parser.add_argument("--inpaint_steps", type=int, default=25, help="Number of steps for inpainting.")
+    parser.add_argument("--inpaint_strength", type=float, default=1, help="Strength of inpainting.")
+    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for image generation.")
+    parser.add_argument("--attn_slicing", action="store_true", help="Use attention slicing for image generation.")
+    parser.add_argument("--precision", type=int, default=16, help="Floating point precision for image generation.")
+    parser.add_argument("--width", type=int, default=512, help="Width of the generated images.")
+    parser.add_argument("--height", type=int, default=512, help="Height of the generated images.")
+    parser.add_argument("--save_process", action="store_true", help="Save the produced images (ex. masks) during the process.")
+    parser.add_argument("--show_process", action="store_true", help="Show the produced images (ex. masks) during the process.")
+    parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-2-1-base", help="Stable Diffusion model name or path.")
+    parser.add_argument("--inpaint_model", type=str, default="stabilityai/stable-diffusion-2-inpainting", help="Stable Diffusion inpainting model name or path.")
     args = parser.parse_args()
     # assertions
+    assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
     assert args.image_per_prompt > 0, "[inference] Number of images per prompt should be greater than 0."
-    assert len(args.special_tokens) == len(args.initial_tokens) == len(args.inversion_paths), "[inference] Number of special tokens, initial tokens, and inversion paths should be the same."
-    # read JSON file
-    if args.json is not None:
-        custom_prompts = read_prompts_json(args.json)
-    return args
+    # assign precision
+    if args.precision == 16:
+        args.dtype = torch.float16
+    elif args.precision == 32:
+        args.dtype = torch.float32
+    else:
+        print("[inference] Warning: Unusual precision value, defaulting to float16.")
+        args.dtype = torch.float16
+    # make output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+    # handle prompts
+    if args.json is not None: # read JSON file
+        prompt_info = read_prompts_json(args.json)
+    else: # use the provided prompts
+        prompt_info = {
+            "id": [0],
+            "initial_prompts": [args.prompt],
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}]
+        }
+    return args, prompt_info
 
 if __name__ == "__main__":
     ## Initialization
     # device
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[inference] Device: {device}.")
-    torch.manual_seed(4219889)
-    # directory
-    code_dir = os.path.dirname(os.path.abspath(__file__))
     # parse arguments
-    args = parse_args()
-    # TODO: actually implement these in parse_args
-    initial_prompt = ["A dog and a cat."]
-    special_tokens = [["<dog>", "<cat2>"]]
-    initial_tokens = [["dog", "cat"]]
-    image_per_prompt = 2
+    args, prompt_info = parse_args()
+    torch.manual_seed(args.seed)
+    prompt_ids = prompt_info["id"]
+    initial_prompts = prompt_info["initial_prompts"]
+    object_tokens = prompt_info["object_tokens"]
+    print(f"[inference] Prompts: {initial_prompts}")
+    print(f"[inference] Object tokens: {object_tokens}")
 
     ## Generate Initial Images
-    # TODO: handle style textual inversion
-    # model
+    # load diffusion model
     print("[inference] Loading Stable Diffusion pipeline...")
-    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="scheduler")
-    diffusion_pipeline = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=diffusion_scheduler, torch_dtype=torch.float32)
-    print("[inference] Pipeline loaded successfully. Generating initial images...")
+    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
+    diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
+    # load textual inversions
+    inversion_dir = args.inversion_dir
+    for inv_dir in os.listdir(inversion_dir):
+        inv_path = os.path.join(inversion_dir, inv_dir)
+        token_name = f"<{inv_dir}>"
+        diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
+    print("[inference] Pipeline loaded successfully.")
     # generate images
-    init_images = generate_stable_diffusion(initial_prompt, pipeline=diffusion_pipeline, image_per_prompt=image_per_prompt,
-                                            batch_size=2, steps=25, attention_slicing=False, dtype=torch.float32)
+    init_images = generate_stable_diffusion(
+        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
+        batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
+        image_size=(args.width, args.height), device=device, dtype=args.dtype)
     # clean up memory
     del diffusion_pipeline, diffusion_scheduler
     torch.cuda.empty_cache()
     print("[inference] Initial images generated successfully, memory released.")
 
     ## Post-Processing
-    # models
+    # load owlv2 model
     print("[inference] Loading object detection model...")
     detection_model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
     detection_processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
     print("[inference] Object detection model loaded successfully.")
+    # load inpainting model
     print("[inference] Loading Stable Diffusion inpainting pipeline...")
-    impaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained("stabilityai/stable-diffusion-2-inpainting", torch_dtype=torch.float32)
-    print("[inference] Pipeline loaded successfully.")
+    inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=args.dtype)
     # load textual inversions
-    textual_inversion_dir = os.path.join(code_dir, "textual_inversions", "sd2")
-    inversion_lists = ["dog", "cat2"]
-    inversion_paths = [os.path.join(textual_inversion_dir, inv) for inv in inversion_lists]
-    inversion_tokens = ["<dog>", "<cat2>"]
-    for inversion_path, inversion_token in zip(inversion_paths, inversion_tokens):
-        impaint_pipeline.load_textual_inversion(inversion_path, token=inversion_token)
-    
-    for image_batch, classes, tokens in zip(init_images, initial_tokens, special_tokens):
+    for inv_dir in os.listdir(inversion_dir):
+        inv_path = os.path.join(inversion_dir, inv_dir)
+        token_name = f"<{inv_dir}>"
+        inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
+    print("[inference] Pipeline loaded successfully.")
+    # loop through the prompts
+    for id, image_batch, object_tokens in zip(prompt_ids, init_images, object_tokens):
+        # upack object tokens
+        classes = object_tokens["init_tokens"]
+        special_tokens = object_tokens["special_tokens"]
         # detect bounding boxes
-        class_batch = [classes]*image_per_prompt
+        class_batch = [classes]*len(image_batch)
         bounding_batch = zero_shot_detection(image_batch, class_batch, processor=detection_processor, model=detection_model, device=device)
         # [showcase]: visualize results
-        visualize_boundings(image_batch, bounding_batch)
+        if args.show_process:
+            visualize_boundings(image_batch, bounding_batch)
         # get the best bounding boxes for each class
         mask_bounding_batch = []
         for obj_classes, result in zip(class_batch, bounding_batch):
@@ -157,31 +221,42 @@ if __name__ == "__main__":
                     bounding_boxes.append(None)
             mask_bounding_batch.append(bounding_boxes)
         # generate mask images
-        mask_batch = generate_masks((512, 512), mask_bounding_batch)
+        mask_batch = generate_masks((args.width, args.height), mask_bounding_batch)
+        # save masks as images
+        if args.save_process:
+            # os.makedirs(os.path.join(args.output_dir, "masks", f"{id}"), exist_ok=True)
+            # TODO: save masks as images
+            pass
         # [showcase]: visualize masks
-        visualize_masks(mask_batch, image_batch, class_batch)
+        if args.show_process:
+            visualize_masks(mask_batch, image_batch, class_batch)
         # impanting concepts
-        prompts = [[f"A {token}" for token in tokens] for _ in range(image_per_prompt)]
+        prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
         final_images = impaint_concept(
             image_batch, prompts, mask_batch,
-            pipeline=impaint_pipeline, steps=25,
-            attention_slicing=False,
-            device=device, dtype=torch.float32)
-
-        # [showcase]: visualize final images
-        num_rows = np.ceil(np.sqrt(len(final_images))).astype(int)
-        num_columns = np.ceil(len(final_images) / num_rows).astype(int)
-        _, axes = plt.subplots(num_rows, num_columns, squeeze=False)
-        axes = axes.flatten()
+            pipeline=inpaint_pipeline, steps=args.inpaint_steps,
+            attention_slicing=args.attn_slicing, strength=args.inpaint_strength,
+            device=device, dtype=args.dtype)
+        # save results
+        os.makedirs(os.path.join(args.output_dir, f"{id}"), exist_ok=True)
         for i, image in enumerate(final_images):
-            axes[i].imshow(image)
-            axes[i].axis("off")
-        # turn off unused axes
-        for ax in axes[len(final_images):]:
-            ax.axis("off")
-        plt.show()
+            image.save(os.path.join(args.output_dir, f"{id}", f"{i}.png"))
+        print(f"[inference] Prompt {id} completed.")
+        # [showcase]: visualize final images
+        if args.show_process:
+            num_rows = np.ceil(np.sqrt(len(final_images))).astype(int)
+            num_columns = np.ceil(len(final_images) / num_rows).astype(int)
+            _, axes = plt.subplots(num_rows, num_columns, squeeze=False)
+            axes = axes.flatten()
+            for i, image in enumerate(final_images):
+                axes[i].imshow(image)
+                axes[i].axis("off")
+            # turn off unused axes
+            for ax in axes[len(final_images):]:
+                ax.axis("off")
+            plt.show()
     # release memory
-    del detection_model, detection_processor, impaint_pipeline
+    del detection_model, detection_processor, inpaint_pipeline
     torch.cuda.empty_cache()
     print("[inference] Memory released.")
     print("[inference] Inference completed.")
