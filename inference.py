@@ -93,7 +93,7 @@ def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
                     obj_init_tokens.append(token_annotation["object"][token])
                     obj_special_tokens.append(token)
                 elif token in token_annotation["style"]:
-                    style_special_token = token_annotation["style"][token]
+                    style_special_token = token
             # replace the object special tokens with initial tokens
             initial_prompt = token_prompt
             for init_token, special_token in zip(obj_init_tokens, obj_special_tokens):
