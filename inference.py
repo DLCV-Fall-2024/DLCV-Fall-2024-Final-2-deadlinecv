@@ -203,9 +203,9 @@ if __name__ == "__main__":
 
     ## Generate Initial Images
     init_images = generate_stable_diffusion(
-        initial_prompts, model=args.sd_model, inversion_dir=args.inversion_dir, image_per_prompt=args.image_per_prompt,
+        initial_prompts, pipeline=args.sd_model, image_per_prompt=args.image_per_prompt,
         batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
-        device=device, dtype=args.dtype)
+        device=device)
     # save initial images
     if args.save_process:
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)

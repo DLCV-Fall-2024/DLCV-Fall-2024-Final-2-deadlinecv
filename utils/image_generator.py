@@ -10,8 +10,7 @@ def generate_stable_diffusion(prompts:List[str],
                               pipeline:any=None, 
                               steps:int=25, strength:float=7.5,
                               image_per_prompt:int=10, batch_size:int=1,
-                              attention_slicing:bool=False, device:str="cuda",
-                              dtype:torch.dtype=torch.float16
+                              attention_slicing:bool=False, device:str="cuda"
                               ) -> List[List[Image.Image]]:
     """
     Generates images using a Stable Diffusion pipeline.
@@ -25,8 +24,6 @@ def generate_stable_diffusion(prompts:List[str],
         batch_size (int, optional): Batch size for inference. Default is 1.
         attention_slicing (bool, optional): Whether to enable attention slicing to reduce VRAM usage at the cost of speed. Default is True.
         device (str, optional): Device to run inference on ('cuda' or 'cpu'). Default is 'cuda'.
-        dtype (torch.dtype, optional): Data type for the pipeline. Will be ignored if you pass the pipeline argument. Default is torch.float16. Some GPUs do not support torch.float16, you will see "RuntimeWarning: invalid value encountered in cast
-  images = (images * 255).round().astype("uint8")" and get a black image. Change to torch.float32 if you encounter this issue.
     Returns:
         List[List[Image.Image]]: A list of list of generated images for each prompt.
     """
@@ -35,7 +32,7 @@ def generate_stable_diffusion(prompts:List[str],
     if pipeline is None:
         print("[image generator] No pipeline provided. Loading default pipeline...")
         scheduler = EulerDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="scheduler")
-        pipeline = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=scheduler, torch_dtype=dtype)
+        pipeline = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=scheduler, torch_dtype=torch.float16)
         print("[image generator] Pipeline loaded successfully.")
     # configure pipeline
     pipeline = pipeline.to(device)
@@ -46,7 +43,6 @@ def generate_stable_diffusion(prompts:List[str],
     for prompt in prompts:
         images = []
         for _ in range(np.ceil(image_per_prompt/batch_size).astype(int)):
-            print(f"After Loading Pipeline ... Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
             image_batch = pipeline(prompt=prompt, 
                               num_inference_steps=steps, guidance_scale=strength,
                               num_images_per_prompt=batch_size)
