@@ -92,7 +92,7 @@ def read_prompts_json(json_path:str)->List[dict]:
             # save the results
             initial_prompts.append(initial_prompt)
             object_tokens.append(obj_tok)
-            style_tokens.append(sty_tok)
+            style_tokens.append(sty_tok["special_token"])
 
         # return the results
         custom_prompts = {
@@ -238,9 +238,8 @@ if __name__ == "__main__":
         if args.show_process:
             visualize_masks(mask_batch, image_batch, class_batch)
         # impanting concepts
-        style_prompt = f"in {style_token} style." if style_token is not None else ""
+        style_prompt = f" in {style_token} style." if style_token is not None else ""
         prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
-        print(f"[inference] Impainting prompt: {prompts}")
         final_images = impaint_concept(
             image_batch, prompts, mask_batch,
             pipeline=inpaint_pipeline, steps=args.inpaint_steps,
