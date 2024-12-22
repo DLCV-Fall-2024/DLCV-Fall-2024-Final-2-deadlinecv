@@ -2,7 +2,7 @@ import os, argparse, json
 from typing import List, Tuple
 from collections import deque
 import torch
-from diffusers import DiffusionPipeline, EulerDiscreteScheduler, StableDiffusionPipeline
+from diffusers import DiffusionPipeline, EulerDiscreteScheduler, StableDiffusionPipeline, StableDiffusionInpaintPipeline
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from utils.image_generator import generate_stable_diffusion
 from utils.mask_generator import zero_shot_detection, generate_masks, visualize_boundings, visualize_masks
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
     ## Generate Initial Images
     init_images = generate_stable_diffusion(
-        initial_prompts, pipeline=args.sd_model, image_per_prompt=args.image_per_prompt,
+        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
         batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
         device=device)
     # save initial images
@@ -211,19 +211,22 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
         for i, image in enumerate(init_images):
             image.save(os.path.join(args.output_dir, "initial_images", f"{i}.png"))
+    # release memory
+    del diffusion_pipeline
+    torch.cuda.empty_cache()
+    print("[inference] Initial images generated successfully. Memory released.")
     exit()
-    ## Post-Processing
+    ## Mask Generation
     # load owlv2 model
     print("[inference] Loading object detection model...")
     detection_model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
     detection_processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
     print("[inference] Object detection model loaded successfully.")
-   
     # loop through the prompts
+    mask_batches = []
     for id, image_batch, object_tokens in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
         classes = object_tokens["init_tokens"]
-        special_tokens = object_tokens["special_tokens"]
         # detect bounding boxes
         class_batch = [classes]*len(image_batch)
         bounding_batch = zero_shot_detection(image_batch, class_batch, processor=detection_processor, model=detection_model, device=device)
@@ -240,13 +243,9 @@ if __name__ == "__main__":
                 else:
                     bounding_boxes.append(None)
             mask_bounding_batch.append(bounding_boxes)
-        # generate mask images
-        if args.sd_model == "stabilityai/stable-diffusion-2-1-base":
-            size_tuple = (512, 512)
-        elif args.sd_model == "stabilityai/stable-diffusion-xl-base-1.0":
-            size_tuple = (1024, 1024)
-
-        mask_batch = generate_masks(size_tuple, mask_bounding_batch)
+        # generate masks
+        mask_batch = generate_masks(args.default_size, mask_bounding_batch)
+        mask_batches.append(mask_batch)
         # save masks as images
         if args.save_process:
             # os.makedirs(os.path.join(args.output_dir, "masks", f"{id}"), exist_ok=True)
@@ -255,12 +254,22 @@ if __name__ == "__main__":
         # [showcase]: visualize masks
         if args.show_process:
             visualize_masks(mask_batch, image_batch, class_batch)
+    # release memory
+    del detection_model, detection_processor
+    torch.cuda.empty_cache()
+    print("[inference] Masks generated successfully. Memory released.")
 
+    ## Impainting Concepts
+    # load inpainting model
+    print("[inference] Loading inpainting model...")
+    inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=torch.float16, variant="fp16")
+    # load textual inversions
 
-
+    for id, image_batch, mask_batch, object_tokens in zip(prompt_ids, init_images, mask_batches, object_tokens):
+        # extract special tokens
+        special_tokens = object_tokens["special_tokens"]
         # impanting concepts
         prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
-        
         final_images = impaint_concept(
             image_batch, prompts, mask_batch, 
             model=args.inpaint_model, width=args.width, height=args.height, inversion_dir=inversion_dir, steps=args.inpaint_steps,
