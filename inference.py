@@ -214,7 +214,6 @@ if __name__ == "__main__":
             # load inversion for both text encoders
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
-            print(f"[inference] Textual inversion loaded for {token_name}.")
         print("[inference] Pipeline loaded successfully.")
     else:
         print("[inference] Loading Stable Diffusion 2 pipeline...")
