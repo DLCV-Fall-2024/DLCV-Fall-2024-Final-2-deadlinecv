@@ -178,57 +178,40 @@ if __name__ == "__main__":
     if args.model_type == "sdxl":
         print("[inference] Loading Stable Diffusion XL pipeline...")
         diffusion_pipeline = DiffusionPipeline.from_pretrained(args.sd_model, torch_dtype=args.dtype, use_safetensors=True, variant="fp16")
+        # textural inversions
+        for inv_dir in os.listdir(args.inversion_dir):
+            inv_path = os.path.join(args.inversion_dir, inv_dir)
+            token_name = f"<{inv_dir}>"
+            # check if the safetensors files are present
+            assert "learned_embeds.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds.safetensors not found in {inv_path}."
+            assert "learned_embeds_2.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds_2.safetensors not found in {inv_path}."
+            # load inversion for both text encoders
+            diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
+            diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
         print("[inference] Pipeline loaded successfully.")
-        exit()
     else:
         print("[inference] Loading Stable Diffusion 2 pipeline...")
         diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
         diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
+        # load textual inversions
+        inversion_dir = args.inversion_dir
+        for inv_dir in os.listdir(inversion_dir):
+            inv_path = os.path.join(inversion_dir, inv_dir)
+            token_name = f"<{inv_dir}>"
+            diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
-    # load textual inversions
-    for inv_dir in os.listdir(args.inversion_dir):
-        inv_path = os.path.join(args.inversion_dir, inv_dir)
-        token_name = f"<{inv_dir}>"
-        for safe_tensor in os.listdir(inv_path):
-            safe_tensor_path = os.path.join(inv_path, safe_tensor)
-            if safe_tensor.endswith(".safetensors"):
-                if "learned_embeds_2" in safe_tensor:
-                    print(f"[image generator] Loading {safe_tensor_path} into text_encoder 2 with token {token_name}")
-                    diffusion_pipeline.load_textual_inversion(safe_tensor_path, token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
 
-                elif "learned_embeds" in safe_tensor:
-                    print(f"[image generator] Loading {safe_tensor_path} into text_encoder with token {token_name}")
-                    diffusion_pipeline.load_textual_inversion(safe_tensor_path, token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
-
-                else:
-                    raise ValueError(
-                        f"[image generator] Unexpected safetensor file format: {safe_tensor_path}. "
-                        f"Expected filenames containing 'learned_embeds' or 'learned_embeds_2'."
-                    )
-                
-            else:
-                raise ValueError(
-                f"[image generator] Unsupported file format: {safe_tensor_path}. "
-                f"Only .safetensors files are allowed."
-            )
-
-    print("[inference] Loading Stable Diffusion pipeline...")
-    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
-    diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
-    # load textual inversions
-    inversion_dir = args.inversion_dir
-    for inv_dir in os.listdir(inversion_dir):
-        inv_path = os.path.join(inversion_dir, inv_dir)
-        token_name = f"<{inv_dir}>"
-        diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
-    print("[inference] Pipeline loaded successfully.")
-    # generate images
+    ## Generate Initial Images
     init_images = generate_stable_diffusion(
         initial_prompts, model=args.sd_model, inversion_dir=args.inversion_dir, image_per_prompt=args.image_per_prompt,
         batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
         device=device, dtype=args.dtype)
-    
-
+    # save initial images
+    if args.save_process:
+        os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
+        for i, image in enumerate(init_images):
+            image.save(os.path.join(args.output_dir, "initial_images", f"{i}.png"))
+    exit()
     ## Post-Processing
     # load owlv2 model
     print("[inference] Loading object detection model...")
