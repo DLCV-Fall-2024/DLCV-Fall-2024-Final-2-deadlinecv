@@ -205,6 +205,8 @@ if __name__ == "__main__":
         # load textural inversions
         for inv_dir in os.listdir(args.inversion_dir):
             inv_path = os.path.join(args.inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
             token_name = f"<{inv_dir}>"
             # check if the safetensors files are present
             assert "learned_embeds.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds.safetensors not found in {inv_path}."
@@ -221,6 +223,8 @@ if __name__ == "__main__":
         inversion_dir = args.inversion_dir
         for inv_dir in os.listdir(inversion_dir):
             inv_path = os.path.join(inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
             token_name = f"<{inv_dir}>"
             diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
@@ -298,6 +302,8 @@ if __name__ == "__main__":
         # load textural inversions
         for inv_dir in os.listdir(args.inversion_dir):
             inv_path = os.path.join(args.inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
             token_name = f"<{inv_dir}>"
             # check if the safetensors files are present
             assert "learned_embeds.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds.safetensors not found in {inv_path}."
@@ -312,6 +318,8 @@ if __name__ == "__main__":
         # load textual inversions
         for inv_dir in os.listdir(inversion_dir):
             inv_path = os.path.join(inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
             token_name = f"<{inv_dir}>"
             inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
