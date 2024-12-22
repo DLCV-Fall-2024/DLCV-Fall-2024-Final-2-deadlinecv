@@ -1,16 +1,14 @@
 import os
-from typing import List, Tuple
+from typing import List
 from PIL import Image
 import torch
 from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler
 import matplotlib.pyplot as plt
 import numpy as np
 
-def generate_stable_diffusion(prompts:List[str], 
-                              pipeline:any=None, 
+def generate_stable_diffusion(prompts:List[str], pipeline:any=None, 
                               steps:int=25, strength:float=7.5,
                               image_per_prompt:int=10, batch_size:int=1,
-                              attention_slicing:bool=False, device:str="cuda"
                               ) -> List[List[Image.Image]]:
     """
     Generates images using a Stable Diffusion pipeline.
@@ -22,8 +20,6 @@ def generate_stable_diffusion(prompts:List[str],
         strength (float, optional): Guidance scale for generation. Default is 7.5.
         image_per_prompt (int, optional): Number of images to generate per prompt. Default is 10.
         batch_size (int, optional): Batch size for inference. Default is 1.
-        attention_slicing (bool, optional): Whether to enable attention slicing to reduce VRAM usage at the cost of speed. Default is True.
-        device (str, optional): Device to run inference on ('cuda' or 'cpu'). Default is 'cuda'.
     Returns:
         List[List[Image.Image]]: A list of list of generated images for each prompt.
     """
@@ -34,10 +30,6 @@ def generate_stable_diffusion(prompts:List[str],
         scheduler = EulerDiscreteScheduler.from_pretrained("stabilityai/stable-diffusion-2-1-base", subfolder="scheduler")
         pipeline = StableDiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1-base", scheduler=scheduler, torch_dtype=torch.float16)
         print("[image generator] Pipeline loaded successfully.")
-    # configure pipeline
-    pipeline = pipeline.to(device)
-    if attention_slicing:
-        pipeline.enable_attention_slicing()
     # generate images
     results = []
     for prompt in prompts:
