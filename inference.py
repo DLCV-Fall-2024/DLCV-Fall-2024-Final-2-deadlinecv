@@ -2,7 +2,7 @@ import os, argparse, json
 from typing import List, Tuple
 from collections import deque
 import torch
-from diffusers import StableDiffusionInpaintPipeline, AutoPipelineForInpainting
+from diffusers import DiffusionPipeline, EulerDiscreteScheduler, StableDiffusionPipeline
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from utils.image_generator import generate_stable_diffusion
 from utils.mask_generator import zero_shot_detection, generate_masks, visualize_boundings, visualize_masks
@@ -121,6 +121,7 @@ def parse_args():
     parser.add_argument("--height", type=int, default=512, help="Height of the generated images.")
     parser.add_argument("--save_process", action="store_true", help="Save the produced images (ex. masks) during the process.")
     parser.add_argument("--show_process", action="store_true", help="Show the produced images (ex. masks) during the process.")
+    parser.add_argument("--model_type", type=str, default="sdxl", help="Type of model to use for inference. Options: 'sdxl' or 'sd2'.")
     parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-xl-base-1.0", help="Stable Diffusion model name or path.")
     parser.add_argument("--inpaint_model", type=str, default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", help="Stable Diffusion inpainting model name or path.")
     args = parser.parse_args()
@@ -146,6 +147,16 @@ def parse_args():
             "initial_prompts": [args.prompt],
             "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}]
         }
+    # default image size
+    if args.model_type == "sdxl":
+        args.default_size = (1024, 1024)
+    elif args.model_type == "sd2":
+        args.default_size = (512, 512)
+    else:
+        print("[inference] Warning: Unusual model type, defaulting to SDXL.")
+        args.default_size = (1024, 1024)
+        args.model_type = "sdxl"
+
     return args, prompt_info
 
 if __name__ == "__main__":
@@ -162,10 +173,58 @@ if __name__ == "__main__":
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
 
+    ## Initial Image Generation
+    # load diffusion model
+    if args.model_type == "sdxl":
+        print("[inference] Loading Stable Diffusion XL pipeline...")
+        diffusion_pipeline = DiffusionPipeline.from_pretrained(args.sd_model, torch_dtype=args.dtype, use_safetensors=True, variant="fp16")
+        print("[inference] Pipeline loaded successfully.")
+        exit()
+    else:
+        print("[inference] Loading Stable Diffusion 2 pipeline...")
+        diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
+        diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
+        print("[inference] Pipeline loaded successfully.")
+    # load textual inversions
+    for inv_dir in os.listdir(args.inversion_dir):
+        inv_path = os.path.join(args.inversion_dir, inv_dir)
+        token_name = f"<{inv_dir}>"
+        for safe_tensor in os.listdir(inv_path):
+            safe_tensor_path = os.path.join(inv_path, safe_tensor)
+            if safe_tensor.endswith(".safetensors"):
+                if "learned_embeds_2" in safe_tensor:
+                    print(f"[image generator] Loading {safe_tensor_path} into text_encoder 2 with token {token_name}")
+                    diffusion_pipeline.load_textual_inversion(safe_tensor_path, token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
+
+                elif "learned_embeds" in safe_tensor:
+                    print(f"[image generator] Loading {safe_tensor_path} into text_encoder with token {token_name}")
+                    diffusion_pipeline.load_textual_inversion(safe_tensor_path, token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
+
+                else:
+                    raise ValueError(
+                        f"[image generator] Unexpected safetensor file format: {safe_tensor_path}. "
+                        f"Expected filenames containing 'learned_embeds' or 'learned_embeds_2'."
+                    )
+                
+            else:
+                raise ValueError(
+                f"[image generator] Unsupported file format: {safe_tensor_path}. "
+                f"Only .safetensors files are allowed."
+            )
+
+    print("[inference] Loading Stable Diffusion pipeline...")
+    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
+    diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
+    # load textual inversions
     inversion_dir = args.inversion_dir
+    for inv_dir in os.listdir(inversion_dir):
+        inv_path = os.path.join(inversion_dir, inv_dir)
+        token_name = f"<{inv_dir}>"
+        diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
+    print("[inference] Pipeline loaded successfully.")
     # generate images
     init_images = generate_stable_diffusion(
-        initial_prompts, model=args.sd_model, inversion_dir=inversion_dir, image_per_prompt=args.image_per_prompt,
+        initial_prompts, model=args.sd_model, inversion_dir=args.inversion_dir, image_per_prompt=args.image_per_prompt,
         batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
         device=device, dtype=args.dtype)
     
