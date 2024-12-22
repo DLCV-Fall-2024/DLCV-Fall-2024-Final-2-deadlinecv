@@ -2,7 +2,7 @@ import os, argparse, json
 from typing import List, Tuple
 from collections import deque
 import torch
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionInpaintPipeline
+from diffusers import StableDiffusionInpaintPipeline, AutoPipelineForInpainting
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from utils.image_generator import generate_stable_diffusion
 from utils.mask_generator import zero_shot_detection, generate_masks, visualize_boundings, visualize_masks
@@ -111,18 +111,18 @@ def parse_args():
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
     parser.add_argument("--seed", type=int, default=1126, help="Random seed for reproducibility.")
-    parser.add_argument("--init_steps", type=int, default=25, help="Number of steps for initial image generation.")
-    parser.add_argument("--inpaint_steps", type=int, default=25, help="Number of steps for inpainting.")
+    parser.add_argument("--init_steps", type=int, default=50, help="Number of steps for initial image generation.")
+    parser.add_argument("--inpaint_steps", type=int, default=50, help="Number of steps for inpainting.")
     parser.add_argument("--inpaint_strength", type=float, default=1, help="Strength of inpainting.")
-    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for image generation.")
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size for image generation.")
     parser.add_argument("--attn_slicing", action="store_true", help="Use attention slicing for image generation.")
     parser.add_argument("--precision", type=int, default=16, help="Floating point precision for image generation.")
     parser.add_argument("--width", type=int, default=512, help="Width of the generated images.")
     parser.add_argument("--height", type=int, default=512, help="Height of the generated images.")
     parser.add_argument("--save_process", action="store_true", help="Save the produced images (ex. masks) during the process.")
     parser.add_argument("--show_process", action="store_true", help="Show the produced images (ex. masks) during the process.")
-    parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-2-1-base", help="Stable Diffusion model name or path.")
-    parser.add_argument("--inpaint_model", type=str, default="stabilityai/stable-diffusion-2-inpainting", help="Stable Diffusion inpainting model name or path.")
+    parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-xl-base-1.0", help="Stable Diffusion model name or path.")
+    parser.add_argument("--inpaint_model", type=str, default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", help="Stable Diffusion inpainting model name or path.")
     args = parser.parse_args()
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
@@ -162,27 +162,13 @@ if __name__ == "__main__":
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
 
-    ## Generate Initial Images
-    # load diffusion model
-    print("[inference] Loading Stable Diffusion pipeline...")
-    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
-    diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
-    # load textual inversions
     inversion_dir = args.inversion_dir
-    for inv_dir in os.listdir(inversion_dir):
-        inv_path = os.path.join(inversion_dir, inv_dir)
-        token_name = f"<{inv_dir}>"
-        diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
-    print("[inference] Pipeline loaded successfully.")
     # generate images
     init_images = generate_stable_diffusion(
-        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
+        initial_prompts, model=args.sd_model, inversion_dir=inversion_dir, image_per_prompt=args.image_per_prompt,
         batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
-        image_size=(args.width, args.height), device=device, dtype=args.dtype)
-    # clean up memory
-    del diffusion_pipeline, diffusion_scheduler
-    torch.cuda.empty_cache()
-    print("[inference] Initial images generated successfully, memory released.")
+        device=device, dtype=args.dtype)
+    
 
     ## Post-Processing
     # load owlv2 model
@@ -190,15 +176,7 @@ if __name__ == "__main__":
     detection_model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
     detection_processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
     print("[inference] Object detection model loaded successfully.")
-    # load inpainting model
-    print("[inference] Loading Stable Diffusion inpainting pipeline...")
-    inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=args.dtype)
-    # load textual inversions
-    for inv_dir in os.listdir(inversion_dir):
-        inv_path = os.path.join(inversion_dir, inv_dir)
-        token_name = f"<{inv_dir}>"
-        inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
-    print("[inference] Pipeline loaded successfully.")
+   
     # loop through the prompts
     for id, image_batch, object_tokens in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
@@ -221,7 +199,12 @@ if __name__ == "__main__":
                     bounding_boxes.append(None)
             mask_bounding_batch.append(bounding_boxes)
         # generate mask images
-        mask_batch = generate_masks((args.width, args.height), mask_bounding_batch)
+        if args.sd_model == "stabilityai/stable-diffusion-2-1-base":
+            size_tuple = (512, 512)
+        elif args.sd_model == "stabilityai/stable-diffusion-xl-base-1.0":
+            size_tuple = (1024, 1024)
+
+        mask_batch = generate_masks(size_tuple, mask_bounding_batch)
         # save masks as images
         if args.save_process:
             # os.makedirs(os.path.join(args.output_dir, "masks", f"{id}"), exist_ok=True)
@@ -230,11 +213,15 @@ if __name__ == "__main__":
         # [showcase]: visualize masks
         if args.show_process:
             visualize_masks(mask_batch, image_batch, class_batch)
+
+
+
         # impanting concepts
         prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
+        
         final_images = impaint_concept(
-            image_batch, prompts, mask_batch,
-            pipeline=inpaint_pipeline, steps=args.inpaint_steps,
+            image_batch, prompts, mask_batch, 
+            model=args.inpaint_model, width=args.width, height=args.height, inversion_dir=inversion_dir, steps=args.inpaint_steps,
             attention_slicing=args.attn_slicing, strength=args.inpaint_strength,
             device=device, dtype=args.dtype)
         # save results
@@ -255,8 +242,6 @@ if __name__ == "__main__":
             for ax in axes[len(final_images):]:
                 ax.axis("off")
             plt.show()
-    # release memory
-    del detection_model, detection_processor, inpaint_pipeline
+    del detection_model, detection_processor
     torch.cuda.empty_cache()
-    print("[inference] Memory released.")
     print("[inference] Inference completed.")

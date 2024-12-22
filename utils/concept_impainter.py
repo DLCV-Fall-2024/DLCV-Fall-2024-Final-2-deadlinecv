@@ -3,14 +3,14 @@ from typing import List, Tuple
 import numpy as np
 from PIL import Image
 import torch
-from diffusers import StableDiffusionInpaintPipeline
+from diffusers import StableDiffusionInpaintPipeline, AutoPipelineForInpainting
 
 def impaint_concept(images:List[Image.Image], prompt_sets:List[List[str]], mask_sets:List[List[np.ndarray]],
-                    pipeline:StableDiffusionInpaintPipeline=None,
-                    textual_inversion_path:List[str]=[],
-                    textual_inversion_token:List[str]=[],
+                    model=None,
+                    width=512, height=512,
+                    inversion_dir=None,
                     steps:int=25, strength:float=1,
-                    attention_slicing:bool=True, device:str="cuda",
+                    attention_slicing:bool=False, device:str="cuda",
                     dtype:torch.dtype=torch.float16
                     ) -> List[Image.Image]:
     '''
@@ -32,20 +32,62 @@ def impaint_concept(images:List[Image.Image], prompt_sets:List[List[str]], mask_
         List[Image.Image]: A list of inpainted images.
     '''
     assert len(images) == len(prompt_sets) == len(prompt_sets), "[concept impainter] Number of images, prompts, and masks should be the same."
-    assert len(textual_inversion_path) == len(textual_inversion_token), "[concept impainter] Number of textual inversion paths and tokens should be the same."
+    # assert len(textual_inversion_path) == len(textual_inversion_token), "[concept impainter] Number of textual inversion paths and tokens should be the same."
     # load model
-    if pipeline is None:
-        print("[concept impainter] No pipeline provided. Loading default pipeline...")
-        pipeline = StableDiffusionInpaintPipeline.from_pretrained(
-            "stabilityai/stable-diffusion-2-inpainting",
-            torch_dtype=dtype
+    if model == "stabilityai/stable-diffusion-2-inpainting":
+        print("[inference] Loading Stable Diffusion inpainting pipeline...")
+        inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(model, torch_dtype=dtype)
+
+        #load textual inversions
+        print(f"[image generator] Loading {inversion_dir}")
+        for inv_dir in os.listdir(inversion_dir):
+            inv_path = os.path.join(inversion_dir, inv_dir)
+            token_name = f"<{inv_dir}>"
+            inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
+        print("[inference] Pipeline loaded successfully.")
+
+    elif model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
+        inpaint_pipeline = AutoPipelineForInpainting.from_pretrained(model, torch_dtype=torch.float16, variant="fp16")
+        print("[inference] Pipeline loaded successfully.")
+    
+        #load textual inversions
+        for inv_dir in os.listdir(inversion_dir):
+            inv_path = os.path.join(inversion_dir, inv_dir)
+            token_name = f"<{inv_dir}>"
+            for safe_tensor in os.listdir(inv_path):
+                safe_tensor_path = os.path.join(inv_path, safe_tensor)
+
+                if safe_tensor.endswith(".safetensors"):
+                    
+                    if "learned_embeds_2" in safe_tensor:
+                        print(f"[image generator] Loading {safe_tensor_path} into text_encoder 2 with token {token_name}")
+                        inpaint_pipeline.load_textual_inversion(safe_tensor_path, token=token_name, text_encoder=inpaint_pipeline.text_encoder_2, tokenizer=inpaint_pipeline.tokenizer_2)
+
+                    elif "learned_embeds" in safe_tensor:
+                        print(f"[image generator] Loading {safe_tensor_path} into text_encoder with token {token_name}")
+                        inpaint_pipeline.load_textual_inversion(safe_tensor_path, token=token_name, text_encoder=inpaint_pipeline.text_encoder, tokenizer=inpaint_pipeline.tokenizer)
+
+                    else:
+                        raise ValueError(
+                            f"[image generator] Unexpected safetensor file format: {safe_tensor_path}. "
+                            f"Expected filenames containing 'learned_embeds' or 'learned_embeds_2'."
+                        )
+                    
+                else:
+                    raise ValueError(
+                    f"[image generator] Unsupported file format: {safe_tensor_path}. "
+                    f"Only .safetensors files are allowed."
+                )
+        inpaint_pipeline.enable_model_cpu_offload()
+        inpaint_pipeline.enable_xformers_memory_efficient_attention()
+
+    else:
+        raise ValueError(
+            f"{model} is not exists, please select between sd2 or sdxl."
         )
-        print("[concept impainter] Pipeline loaded successfully.")
-    # load textual inversions
-    for inversion_path, inversion_token in zip(textual_inversion_path, textual_inversion_token):
-        pipeline.load_textual_inversion(inversion_path, token=inversion_token)
+    
     # configure pipeline
-    pipeline = pipeline.to(device)
+    pipeline = inpaint_pipeline.to(device)
     if attention_slicing:
         pipeline.enable_attention_slicing()
     # impaint concepts
@@ -58,5 +100,8 @@ def impaint_concept(images:List[Image.Image], prompt_sets:List[List[str]], mask_
             image = pipeline(prompt=prompt, image=image, mask_image=mask,
                              width=image.width, height=image.height,
                              num_inference_steps=steps, strength=strength).images[0]
+            image = image.resize((width, height), Image.LANCZOS) 
         results.append(image)
+    del inpaint_pipeline
+    torch.cuda.empty_cache()
     return results
