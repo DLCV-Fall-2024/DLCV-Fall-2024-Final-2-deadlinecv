@@ -1,42 +1,16 @@
 {
-    "<cat2>":
+    "object":
     {
-        "initial_token": "cat",
-        "type": "object"
+        "<cat2>": "cat",
+        "<dog>": "corgi",
+        "<dog6>": "dog",
+        "<flower_1>": "flower",
+        "<pet_cat1>": "cat",
+        "<vase>": "tall vase",
+        "<wearable_glasses>": "glasses"
     },
-    "<dog>":
+    "style":
     {
-        "initial_token": "corgi",
-        "type": "object"
-    },
-    "<dog6>":
-    {
-        "initial_token": "dog",
-        "type": "object"
-    },
-    "<flower_1>":
-    {
-        "initial_token": "flower",
-        "type": "object"
-    },
-    "<pet_cat1>":
-    {
-        "initial_token": "cat",
-        "type": "object"
-    },
-    "<vase>":
-    {
-        "initial_token": "tall vase",
-        "type": "object"
-    },
-    "<watercolor>":
-    {
-        "initial_token": "watercolor",
-        "type": "style"
-    },
-    "<wearable_glasses>":
-    {
-        "initial_token": "glasses",
-        "type": "object"
+        "<watercolor>": "watercolor"
     }
 }

@@ -65,11 +65,12 @@ def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     }
     return obj_dict, style_dict
 
-def read_prompts_json(json_path:str)->List[dict]:
+def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
     '''
     Read the JSON file containing prompts and extract the necessary information.
     Args:
         json_path (str): Path to the JSON file containing prompts.
+        token_annotation (dict): A dictionary containing the annotations for special tokens.
     Returns:
         List[dict]: A list of dictionaries containing the necessary information for each prompt.
     '''
@@ -79,24 +80,34 @@ def read_prompts_json(json_path:str)->List[dict]:
         prompt_ids = list(data.keys())
         initial_prompts = []
         object_tokens = []
+        style_tokens = []
         for prompt_id in prompt_ids:
             # extract prompts
-            prompt_token = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
-            initial_prompt = data[prompt_id]["prompt_4_clip_eval"].rstrip('.')
+            token_prompt = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
+            special_tokens = data[prompt_id]["token_name"]
             # get the initial tokens
-            obj_tok, sty_tok = get_initial_tokens(prompt_token, initial_prompt)
-            # handle style prompt
-            if sty_tok["init_token"] is not None:
-                initial_prompt = initial_prompt.replace(sty_tok["init_token"], sty_tok["special_token"])
+            obj_init_tokens, obj_special_tokens = [], []
+            style_special_token = None
+            for token in special_tokens:
+                if token in token_annotation["object"]:
+                    obj_init_tokens.append(token_annotation["object"][token])
+                    obj_special_tokens.append(token)
+                elif token in token_annotation["style"]:
+                    style_special_token = token_annotation["style"][token]
+            # replace the object special tokens with initial tokens
+            initial_prompt = token_prompt
+            for init_token, special_token in zip(obj_init_tokens, obj_special_tokens):
+                initial_prompt = initial_prompt.replace(special_token, init_token)
             # save the results
             initial_prompts.append(initial_prompt)
-            object_tokens.append(obj_tok)
-
+            object_tokens.append({"init_tokens": obj_init_tokens, "special_tokens": obj_special_tokens})
+            style_tokens.append(style_special_token)
         # return the results
         custom_prompts = {
             "id": prompt_ids,
             "initial_prompts": initial_prompts,
             "object_tokens": object_tokens,
+            "style_tokens": style_tokens
         }
     return custom_prompts
 
@@ -106,6 +117,7 @@ def parse_args():
     parser.add_argument("--prompt", type=str, default="A dog and a cat.", help="List of prompts for image generation.")
     parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog>", "<cat>"], help="List of special tokens for textual inversion.")
     parser.add_argument("--init_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
@@ -139,14 +151,23 @@ def parse_args():
         args.dtype = torch.float16
     # make output directory
     os.makedirs(args.output_dir, exist_ok=True)
+    # read token annotations
+    if args.inversion_dir is not None:
+        # assert there is a annotation.json file in args.inversion_dir
+        assert "annotation.json" in os.listdir(args.inversion_dir), "[inference] annotation.json not found in the inversion directory."
+        with open(os.path.join(args.inversion_dir, "annotation.json"), "r") as f:
+            token_annotation = json.load(f)
+    else:
+        token_annotation = {}
     # handle prompts
     if args.json is not None: # read JSON file
-        prompt_info = read_prompts_json(args.json)
+        prompt_info = read_prompts_json(args.json, token_annotation)
     else: # use the provided prompts
         prompt_info = {
             "id": [0],
             "initial_prompts": [args.prompt],
-            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}]
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}],
+            "style_tokens": [args.style_special_token]
         }
     # default image size
     if args.model_type == "sdxl":
@@ -171,8 +192,10 @@ if __name__ == "__main__":
     prompt_ids = prompt_info["id"]
     initial_prompts = prompt_info["initial_prompts"]
     object_tokens = prompt_info["object_tokens"]
+    style_tokens = prompt_info["style_tokens"]
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
+    print(f"[inference] Style tokens: {style_tokens}")
 
     ## Initial Image Generation
     # load diffusion model
@@ -300,11 +323,12 @@ if __name__ == "__main__":
         inpaint_pipeline.enable_xformers_memory_efficient_attention()
     inpaint_pipeline.enable_model_cpu_offload()
     # impaint
-    for id, image_batch, mask_batch, object_tokens in zip(prompt_ids, init_images, mask_batches, object_tokens):
+    for id, image_batch, mask_batch, object_tokens, style_token in zip(prompt_ids, init_images, mask_batches, object_tokens, style_tokens):
         # extract special tokens
         special_tokens = object_tokens["special_tokens"]
         # impanting concepts
-        prompts = [[f"A {token}" for token in special_tokens] for _ in range(len(image_batch))]
+        style_prompt = f" in {style_token} style." if style_token is not None else ""
+        prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
         final_images = impaint_concept(
             image_batch, prompts, mask_batch, 
             pipeline=inpaint_pipeline, size=(args.width, args.height),
