@@ -280,8 +280,8 @@ if __name__ == "__main__":
             assert "learned_embeds.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds.safetensors not found in {inv_path}."
             assert "learned_embeds_2.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds_2.safetensors not found in {inv_path}."
             # load inversion for both text encoders
-            diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
-            diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
+            inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
+            inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
         print("[inference] Pipeline loaded successfully.")
     else:
         print("[inference] Loading Stable Diffusion 2 inpainting pipeline...")
