@@ -259,9 +259,9 @@ if __name__ == "__main__":
     print("[inference] Object detection model loaded successfully.")
     # loop through the prompts
     mask_batches = []
-    for id, image_batch, object_tokens in zip(prompt_ids, init_images, object_tokens):
+    for id, image_batch, object_token in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
-        classes = object_tokens["init_tokens"]
+        classes = object_token["init_tokens"]
         # detect bounding boxes
         class_batch = [classes]*len(image_batch)
         bounding_batch = zero_shot_detection(image_batch, class_batch, processor=detection_processor, model=detection_model, device=device)
@@ -331,9 +331,9 @@ if __name__ == "__main__":
         inpaint_pipeline.enable_xformers_memory_efficient_attention()
     inpaint_pipeline.enable_model_cpu_offload()
     # impaint
-    for id, image_batch, mask_batch, object_tokens, style_token in zip(prompt_ids, init_images, mask_batches, object_tokens, style_tokens):
+    for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, init_images, mask_batches, object_tokens, style_tokens):
         # extract special tokens
-        special_tokens = object_tokens["special_tokens"]
+        special_tokens = object_token["special_tokens"]
         # impanting concepts
         style_prompt = f" in {style_token} style." if style_token is not None else ""
         prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
