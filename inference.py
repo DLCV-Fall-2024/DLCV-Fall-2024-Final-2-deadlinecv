@@ -115,8 +115,8 @@ def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
 def parse_args():
     # arguments
     parser = argparse.ArgumentParser(description="Inference script for object detection.")
-    parser.add_argument("--prompt", type=str, default="A dog and a cat.", help="List of prompts for image generation.")
-    parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog>", "<cat>"], help="List of special tokens for textual inversion.")
+    parser.add_argument("--prompt", type=str, default="A <cat2> on the right and a <dog6> on the left.", help="List of prompts for image generation.")
+    parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog6>", "<cat2>"], help="List of special tokens for textual inversion.")
     parser.add_argument("--init_tokens", nargs="+", type=str, default=["corgi", "grey cat"], help="List of object tokens replacing the special tokens.")
     parser.add_argument("--id_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of tags for the detection.")
     parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
@@ -169,9 +169,12 @@ def parse_args():
     if args.json is not None: # read JSON file
         prompt_info = read_prompts_json(args.json, token_annotation)
     else: # use the provided prompts
+        initial_prompt = args.prompt
+        for special_token, init_token in zip(args.special_tokens, args.init_tokens):
+            initial_prompt = initial_prompt.replace(special_token, init_token)
         prompt_info = {
             "id": [0],
-            "initial_prompts": [args.prompt],
+            "initial_prompts": [initial_prompt],
             "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
             "style_tokens": [args.style_special_token]
         }
