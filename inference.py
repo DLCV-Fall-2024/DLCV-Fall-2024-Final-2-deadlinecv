@@ -255,7 +255,7 @@ if __name__ == "__main__":
     torch.cuda.empty_cache()
     print("[inference] Initial images generated successfully. Memory released.")
     # filter bad images
-    if args.backup_images > 0:
+    if args.backup_images >= 0:
         print("[inference] Filtering bad images...")
         model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
