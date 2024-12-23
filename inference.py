@@ -254,31 +254,6 @@ if __name__ == "__main__":
     del diffusion_pipeline
     torch.cuda.empty_cache()
     print("[inference] Initial images generated successfully. Memory released.")
-    # filter bad images
-    if args.backup_images >= 0:
-        print("[inference] Filtering bad images...")
-        model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-        processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        good_images = []
-        for prompt, image_batch in zip(initial_prompts, init_images):
-            # preprocess images
-            inputs = processor(text=[prompt], images=image_batch, return_tensors="pt", padding=True)
-            with torch.no_grad():
-                outputs = model(**inputs)
-                logits_per_image = outputs.logits_per_image
-                clip_scores = logits_per_image.squeeze().tolist()
-                # Handle single image case
-                if isinstance(clip_scores, float):
-                    clip_scores = [clip_scores]
-            print(f"[Debug] Scores: {clip_scores}")
-            # sort images by score
-            sorted_images = [image for _, image in sorted(zip(clip_scores, image_batch), reverse=True)]
-            good_images.append(sorted_images[:args.image_per_prompt])
-        init_images = good_images
-        # release memory
-        del model, processor
-        torch.cuda.empty_cache()
-        print("[inference] Bad images filtered successfully. Memory released.")
     # save initial images
     if args.save_process:
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
@@ -295,6 +270,7 @@ if __name__ == "__main__":
     print("[inference] Object detection model loaded successfully.")
     # loop through the prompts
     mask_batches = []
+    good_images = []
     for id, image_batch, object_token in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
         classes = object_token["id_tokens"]
@@ -308,24 +284,35 @@ if __name__ == "__main__":
             visualize_boundings(image_batch, bounding_batch)
         # get the best bounding boxes for each class
         mask_bounding_batch = []
-        for obj_classes, result in zip(class_batch, bounding_batch):
+        num_discarded = 0
+        good_image_batch = []
+        for obj_classes, result, image in zip(class_batch, bounding_batch, image_batch):
             bounding_boxes = []
             for obj_class in obj_classes:
                 if result[obj_class]: # check if the list is not empty
                     bounding_boxes.append(result[obj_class].pop(0))
-                else:
+                elif num_discarded < args.backup_images: # discard if still have backup quota
+                    num_discarded += 1
+                    continue
+                else: # no more backup quota, no choice but to append None
                     bounding_boxes.append(None)
             mask_bounding_batch.append(bounding_boxes)
+            good_image_batch.append(image)
+        # control the number of images
+        mask_bounding_batch = mask_bounding_batch[:args.image_per_prompt]
+        good_image_batch = good_image_batch[:args.image_per_prompt]
         # generate masks
         mask_batch = generate_masks(args.default_size, mask_bounding_batch)
         mask_batches.append(mask_batch)
+        good_images.append(good_image_batch)
         # save masks as images
         if args.save_process:
             os.makedirs(os.path.join(args.output_dir, "masks"), exist_ok=True)
-            visualize_masks(mask_batch, image_batch, class_batch, save_path=os.path.join(args.output_dir, "masks", f"{id}.png"))
+            visualize_masks(mask_batch, good_image_batch, class_batch, save_path=os.path.join(args.output_dir, "masks", f"{id}.png"))
         # [showcase]: visualize masks
         if args.show_process:
-            visualize_masks(mask_batch, image_batch, class_batch)
+            visualize_masks(mask_batch, good_image_batch, class_batch)
+    
     # release memory
     del detection_model, detection_processor
     torch.cuda.empty_cache()
@@ -368,7 +355,7 @@ if __name__ == "__main__":
         inpaint_pipeline.enable_xformers_memory_efficient_attention()
     inpaint_pipeline.enable_model_cpu_offload()
     # impaint
-    for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, init_images, mask_batches, object_tokens, style_tokens):
+    for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, good_images, mask_batches, object_tokens, style_tokens):
         # extract special tokens
         special_tokens = object_token["special_tokens"]
         # impanting concepts
