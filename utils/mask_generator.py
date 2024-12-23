@@ -122,10 +122,10 @@ def generate_masks(image_size:Tuple[int, int], bounding_batch:List[List[dict]]):
             if bounding is not None:
                 mask = np.zeros(image_size, dtype=np.uint8)
                 cx, cy, w, h = bounding["box"]
-                xmin = int((cx - w/2) * image_size[0])
-                xmax = int((cx + w/2) * image_size[0])
-                ymin = int((cy - h/2) * image_size[1])
-                ymax = int((cy + h/2) * image_size[1])
+                xmin = np.clip(int((cx - w/2) * image_size[0]), 0, image_size[0])
+                xmax = np.clip(int((cx + w/2) * image_size[0]), 0, image_size[0])
+                ymin = np.clip(int((cy - h/2) * image_size[1]), 0, image_size[1])
+                ymax = np.clip(int((cy + h/2) * image_size[1]), 0, image_size[1])
                 mask[ymin:ymax, xmin:xmax] = 255
                 masks.append(mask)
             else:
