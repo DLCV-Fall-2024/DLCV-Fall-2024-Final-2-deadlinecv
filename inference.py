@@ -344,7 +344,7 @@ if __name__ == "__main__":
         # impanting concepts
         style_prompt = f" in {style_token} style." if style_token is not None else ""
         prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
-        print(f"[inference] Impainting for prompt {prompts}...")
+        print(f"[inference] Impainting for prompt {prompts[0]}...")
         final_images = impaint_concept(
             image_batch, prompts, mask_batch, 
             pipeline=inpaint_pipeline, size=(args.width, args.height),
