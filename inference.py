@@ -356,6 +356,8 @@ if __name__ == "__main__":
     inpaint_pipeline.enable_model_cpu_offload()
     # impaint
     for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, good_images, mask_batches, object_tokens, style_tokens):
+        print(image_batch)
+        print(mask_batch)
         # extract special tokens
         special_tokens = object_token["special_tokens"]
         # impanting concepts
