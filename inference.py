@@ -275,7 +275,7 @@ if __name__ == "__main__":
         class_batch = [classes]*len(image_batch)
         bounding_batch = zero_shot_detection(
             image_batch, class_batch, processor=detection_processor, model=detection_model,
-            threshold=0, device=device)
+            threshold=0.1, device=device)
         # [showcase]: visualize results
         if args.show_process:
             visualize_boundings(image_batch, bounding_batch)
