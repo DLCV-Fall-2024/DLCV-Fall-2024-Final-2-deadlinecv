@@ -9,7 +9,7 @@ from utils.mask_generator import zero_shot_detection, generate_masks, visualize_
 from utils.concept_impainter import impaint_concept
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
+from transformers import CLIPModel, CLIPProcessor
 
 def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     '''
@@ -121,6 +121,7 @@ def parse_args():
     parser.add_argument("--id_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of tags for the detection.")
     parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
+    parser.add_argument("--backup_images", type=int, default=0, help="Number of additional images to generate for better performance.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
@@ -143,6 +144,7 @@ def parse_args():
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
     assert args.image_per_prompt > 0, "[inference] Number of images per prompt should be greater than 0."
+    assert args.backup_images >= 0, "[inference] Number of backup images should be greater than or equal to 0."
     # assign precision
     if args.precision == 16:
         args.dtype = torch.float16
@@ -244,10 +246,38 @@ if __name__ == "__main__":
     if args.xformer:
         diffusion_pipeline.enable_xformers_memory_efficient_attention()
     diffusion_pipeline.enable_model_cpu_offload()
-    # Generate Initial Images
+    # generate Initial Images
     init_images = generate_stable_diffusion(
         initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
         batch_size=args.batch_size, steps=args.init_steps)
+    # release memory
+    del diffusion_pipeline
+    torch.cuda.empty_cache()
+    print("[inference] Initial images generated successfully. Memory released.")
+    # filter bad images
+    if args.backup_images > 0:
+        print("[inference] Filtering bad images...")
+        model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+        processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        good_images = []
+        for prompt, image_batch in zip(initial_prompts, init_images):
+            # preprocess images
+            inputs = processor(text=[prompt], images=image_batch, return_tensors="pt", padding=True)
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits_per_image = outputs.logits_per_image
+                clip_scores = logits_per_image.squeeze().tolist()
+                # Handle single image case
+                if isinstance(clip_scores, float):
+                    clip_scores = [clip_scores]
+            # sort images by score
+            sorted_images = [image for _, image in sorted(zip(clip_scores, image_batch), reverse=True)]
+            good_images.append(sorted_images[:args.image_per_prompt])
+        init_images = good_images
+        # release memory
+        del model, processor
+        torch.cuda.empty_cache()
+        print("[inference] Bad images filtered successfully. Memory released.")
     # save initial images
     if args.save_process:
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
@@ -255,10 +285,6 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(args.output_dir, "initial_images", f"{i}"), exist_ok=True)
             for j, image in enumerate(image_batch):
                 image.save(os.path.join(args.output_dir, "initial_images", f"{i}", f"{j}.png"))
-    # release memory
-    del diffusion_pipeline
-    torch.cuda.empty_cache()
-    print("[inference] Initial images generated successfully. Memory released.")
 
     ## Mask Generation
     # load owlv2 model
