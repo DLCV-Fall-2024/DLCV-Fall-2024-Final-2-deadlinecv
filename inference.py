@@ -257,7 +257,7 @@ if __name__ == "__main__":
     # filter bad images
     if args.backup_images > 0:
         print("[inference] Filtering bad images...")
-        model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+        model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
         good_images = []
         for prompt, image_batch in zip(initial_prompts, init_images):
