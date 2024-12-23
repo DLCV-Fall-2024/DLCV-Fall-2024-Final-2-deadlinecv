@@ -86,11 +86,12 @@ def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
             token_prompt = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
             special_tokens = data[prompt_id]["token_name"]
             # get the initial tokens
-            obj_init_tokens, obj_special_tokens = [], []
+            obj_init_tokens, obj_special_tokens, obj_id_tokens = [], [], []
             style_special_token = None
             for token in special_tokens:
                 if token in token_annotation["object"]:
-                    obj_init_tokens.append(token_annotation["object"][token])
+                    obj_init_tokens.append(token_annotation["object"][token]["init_token"])
+                    obj_id_tokens.append(token_annotation["object"][token]["id_token"])
                     obj_special_tokens.append(token)
                 elif token in token_annotation["style"]:
                     style_special_token = token
@@ -100,7 +101,7 @@ def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
                 initial_prompt = initial_prompt.replace(special_token, init_token)
             # save the results
             initial_prompts.append(initial_prompt)
-            object_tokens.append({"init_tokens": obj_init_tokens, "special_tokens": obj_special_tokens})
+            object_tokens.append({"init_tokens": obj_init_tokens, "special_tokens": obj_special_tokens, "id_tokens": obj_id_tokens})
             style_tokens.append(style_special_token)
         # return the results
         custom_prompts = {
@@ -116,7 +117,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Inference script for object detection.")
     parser.add_argument("--prompt", type=str, default="A dog and a cat.", help="List of prompts for image generation.")
     parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog>", "<cat>"], help="List of special tokens for textual inversion.")
-    parser.add_argument("--init_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--init_tokens", nargs="+", type=str, default=["corgi", "grey cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--id_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of tags for the detection.")
     parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
@@ -159,6 +161,10 @@ def parse_args():
             token_annotation = json.load(f)
     else:
         token_annotation = {}
+    # handle id tokens
+    if len(args.id_tokens) != len(args.init_tokens):
+        print("[inference] Warning: Number of id tokens should match the number of initial tokens, using the initial tokens as id tokens.")
+        args.id_tokens = args.init_tokens
     # handle prompts
     if args.json is not None: # read JSON file
         prompt_info = read_prompts_json(args.json, token_annotation)
@@ -166,7 +172,7 @@ def parse_args():
         prompt_info = {
             "id": [0],
             "initial_prompts": [args.prompt],
-            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}],
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
             "style_tokens": [args.style_special_token]
         }
     # default image size
@@ -261,10 +267,12 @@ if __name__ == "__main__":
     mask_batches = []
     for id, image_batch, object_token in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
-        classes = object_token["init_tokens"]
+        classes = object_token["id_tokens"]
         # detect bounding boxes
         class_batch = [classes]*len(image_batch)
-        bounding_batch = zero_shot_detection(image_batch, class_batch, processor=detection_processor, model=detection_model, device=device)
+        bounding_batch = zero_shot_detection(
+            image_batch, class_batch, processor=detection_processor, model=detection_model,
+            threshold=0, device=device)
         # [showcase]: visualize results
         if args.show_process:
             visualize_boundings(image_batch, bounding_batch)
