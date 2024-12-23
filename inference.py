@@ -169,7 +169,7 @@ def parse_args():
     if args.json is not None: # read JSON file
         prompt_info = read_prompts_json(args.json, token_annotation)
     else: # use the provided prompts
-        initial_prompt = args.prompt
+        initial_prompt = args.prompt.rstrip('.').replace(">,", ">")
         for special_token, init_token in zip(args.special_tokens, args.init_tokens):
             initial_prompt = initial_prompt.replace(special_token, init_token)
         prompt_info = {
