@@ -248,7 +248,7 @@ if __name__ == "__main__":
     diffusion_pipeline.enable_model_cpu_offload()
     # generate Initial Images
     init_images = generate_stable_diffusion(
-        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
+        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt+args.backup_images,
         batch_size=args.batch_size, steps=args.init_steps)
     # release memory
     del diffusion_pipeline
