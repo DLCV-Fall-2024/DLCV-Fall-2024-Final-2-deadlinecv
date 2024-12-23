@@ -2,7 +2,7 @@ import os, argparse, json
 from typing import List, Tuple
 from collections import deque
 import torch
-from diffusers import StableDiffusionPipeline, EulerDiscreteScheduler, StableDiffusionInpaintPipeline
+from diffusers import DiffusionPipeline, EulerDiscreteScheduler, StableDiffusionPipeline, StableDiffusionInpaintPipeline, AutoPipelineForInpainting
 from transformers import Owlv2ForObjectDetection, Owlv2Processor
 from utils.image_generator import generate_stable_diffusion
 from utils.mask_generator import zero_shot_detection, generate_masks, visualize_boundings, visualize_masks
@@ -65,11 +65,12 @@ def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     }
     return obj_dict, style_dict
 
-def read_prompts_json(json_path:str)->List[dict]:
+def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
     '''
     Read the JSON file containing prompts and extract the necessary information.
     Args:
         json_path (str): Path to the JSON file containing prompts.
+        token_annotation (dict): A dictionary containing the annotations for special tokens.
     Returns:
         List[dict]: A list of dictionaries containing the necessary information for each prompt.
     '''
@@ -82,18 +83,26 @@ def read_prompts_json(json_path:str)->List[dict]:
         style_tokens = []
         for prompt_id in prompt_ids:
             # extract prompts
-            prompt_token = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
-            initial_prompt = data[prompt_id]["prompt_4_clip_eval"].rstrip('.')
+            token_prompt = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
+            special_tokens = data[prompt_id]["token_name"]
             # get the initial tokens
-            obj_tok, sty_tok = get_initial_tokens(prompt_token, initial_prompt)
-            # handle style prompt
-            if sty_tok["init_token"] is not None:
-                initial_prompt = initial_prompt.replace(sty_tok["init_token"], sty_tok["special_token"])
+            obj_init_tokens, obj_special_tokens, obj_id_tokens = [], [], []
+            style_special_token = None
+            for token in special_tokens:
+                if token in token_annotation["object"]:
+                    obj_init_tokens.append(token_annotation["object"][token]["init_token"])
+                    obj_id_tokens.append(token_annotation["object"][token]["id_token"])
+                    obj_special_tokens.append(token)
+                elif token in token_annotation["style"]:
+                    style_special_token = token
+            # replace the object special tokens with initial tokens
+            initial_prompt = token_prompt
+            for init_token, special_token in zip(obj_init_tokens, obj_special_tokens):
+                initial_prompt = initial_prompt.replace(special_token, init_token)
             # save the results
             initial_prompts.append(initial_prompt)
-            object_tokens.append(obj_tok)
-            style_tokens.append(sty_tok["special_token"])
-
+            object_tokens.append({"init_tokens": obj_init_tokens, "special_tokens": obj_special_tokens, "id_tokens": obj_id_tokens})
+            style_tokens.append(style_special_token)
         # return the results
         custom_prompts = {
             "id": prompt_ids,
@@ -106,9 +115,10 @@ def read_prompts_json(json_path:str)->List[dict]:
 def parse_args():
     # arguments
     parser = argparse.ArgumentParser(description="Inference script for object detection.")
-    parser.add_argument("--prompt", type=str, default="A dog and a cat.", help="List of prompts for image generation.")
-    parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog>", "<cat>"], help="List of special tokens for textual inversion.")
-    parser.add_argument("--init_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--prompt", type=str, default="A <cat2> on the right and a <dog6> on the left.", help="List of prompts for image generation.")
+    parser.add_argument("--special_tokens", nargs="+", type=str, default=["<dog6>", "<cat2>"], help="List of special tokens for textual inversion.")
+    parser.add_argument("--init_tokens", nargs="+", type=str, default=["corgi", "grey cat"], help="List of object tokens replacing the special tokens.")
+    parser.add_argument("--id_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of tags for the detection.")
     parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
@@ -118,15 +128,17 @@ def parse_args():
     parser.add_argument("--init_steps", type=int, default=25, help="Number of steps for initial image generation.")
     parser.add_argument("--inpaint_steps", type=int, default=25, help="Number of steps for inpainting.")
     parser.add_argument("--inpaint_strength", type=float, default=1, help="Strength of inpainting.")
-    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for image generation.")
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size for image generation.")
     parser.add_argument("--attn_slicing", action="store_true", help="Use attention slicing for image generation.")
+    parser.add_argument("--xformer", action="store_true", help="Use memory efficient attention for image generation.")
     parser.add_argument("--precision", type=int, default=16, help="Floating point precision for image generation.")
     parser.add_argument("--width", type=int, default=512, help="Width of the generated images.")
     parser.add_argument("--height", type=int, default=512, help="Height of the generated images.")
     parser.add_argument("--save_process", action="store_true", help="Save the produced images (ex. masks) during the process.")
     parser.add_argument("--show_process", action="store_true", help="Show the produced images (ex. masks) during the process.")
-    parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-2-1-base", help="Stable Diffusion model name or path.")
-    parser.add_argument("--inpaint_model", type=str, default="stabilityai/stable-diffusion-2-inpainting", help="Stable Diffusion inpainting model name or path.")
+    parser.add_argument("--model_type", type=str, default="sdxl", help="Type of model to use for inference. Options: 'sdxl' or 'sd2'.")
+    parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-xl-base-1.0", help="Stable Diffusion model name or path.")
+    parser.add_argument("--inpaint_model", type=str, default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", help="Stable Diffusion inpainting model name or path.")
     args = parser.parse_args()
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
@@ -141,16 +153,41 @@ def parse_args():
         args.dtype = torch.float16
     # make output directory
     os.makedirs(args.output_dir, exist_ok=True)
+    # read token annotations
+    if args.inversion_dir is not None:
+        # assert there is a annotation.json file in args.inversion_dir
+        assert "annotation.json" in os.listdir(args.inversion_dir), "[inference] annotation.json not found in the inversion directory."
+        with open(os.path.join(args.inversion_dir, "annotation.json"), "r") as f:
+            token_annotation = json.load(f)
+    else:
+        token_annotation = {}
+    # handle id tokens
+    if len(args.id_tokens) != len(args.init_tokens):
+        print("[inference] Warning: Number of id tokens should match the number of initial tokens, using the initial tokens as id tokens.")
+        args.id_tokens = args.init_tokens
     # handle prompts
     if args.json is not None: # read JSON file
-        prompt_info = read_prompts_json(args.json)
+        prompt_info = read_prompts_json(args.json, token_annotation)
     else: # use the provided prompts
+        initial_prompt = args.prompt
+        for special_token, init_token in zip(args.special_tokens, args.init_tokens):
+            initial_prompt = initial_prompt.replace(special_token, init_token)
         prompt_info = {
             "id": [0],
-            "initial_prompts": [args.prompt],
-            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens}],
+            "initial_prompts": [initial_prompt],
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
             "style_tokens": [args.style_special_token]
         }
+    # default image size
+    if args.model_type == "sdxl":
+        args.default_size = (1024, 1024)
+    elif args.model_type == "sd2":
+        args.default_size = (512, 512)
+    else:
+        print("[inference] Warning: Unusual model type, defaulting to SDXL.")
+        args.default_size = (1024, 1024)
+        args.model_type = "sdxl"
+
     return args, prompt_info
 
 if __name__ == "__main__":
@@ -169,51 +206,76 @@ if __name__ == "__main__":
     print(f"[inference] Object tokens: {object_tokens}")
     print(f"[inference] Style tokens: {style_tokens}")
 
-    ## Generate Initial Images
+    ## Initial Image Generation
     # load diffusion model
-    print("[inference] Loading Stable Diffusion pipeline...")
-    diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
-    diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
-    # load textual inversions
-    inversion_dir = args.inversion_dir
-    for inv_dir in os.listdir(inversion_dir):
-        inv_path = os.path.join(inversion_dir, inv_dir)
-        token_name = f"<{inv_dir}>"
-        diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
-    print("[inference] Pipeline loaded successfully.")
-    # generate images
+    if args.model_type == "sdxl":
+        print("[inference] Loading Stable Diffusion XL pipeline...")
+        diffusion_pipeline = DiffusionPipeline.from_pretrained(args.sd_model, torch_dtype=args.dtype, use_safetensors=True, variant="fp16")
+        # load textural inversions
+        for inv_dir in os.listdir(args.inversion_dir):
+            inv_path = os.path.join(args.inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
+            token_name = f"<{inv_dir}>"
+            # check if the safetensors files are present
+            assert "learned_embeds.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds.safetensors not found in {inv_path}."
+            assert "learned_embeds_2.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds_2.safetensors not found in {inv_path}."
+            # load inversion for both text encoders
+            diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
+            diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
+        print("[inference] Pipeline loaded successfully.")
+    else:
+        print("[inference] Loading Stable Diffusion 2 pipeline...")
+        diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
+        diffusion_pipeline = StableDiffusionPipeline.from_pretrained(args.sd_model, scheduler=diffusion_scheduler, torch_dtype=args.dtype)
+        # load textual inversions
+        inversion_dir = args.inversion_dir
+        for inv_dir in os.listdir(inversion_dir):
+            inv_path = os.path.join(inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
+            token_name = f"<{inv_dir}>"
+            diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
+        print("[inference] Pipeline loaded successfully.")
+    # configure pipeline
+    diffusion_pipeline = diffusion_pipeline.to(device)
+    if args.attn_slicing:
+        diffusion_pipeline.enable_attention_slicing()
+    if args.xformer:
+        diffusion_pipeline.enable_xformers_memory_efficient_attention()
+    diffusion_pipeline.enable_model_cpu_offload()
+    # Generate Initial Images
     init_images = generate_stable_diffusion(
         initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
-        batch_size=args.batch_size, steps=args.init_steps, attention_slicing=args.attn_slicing,
-        image_size=(args.width, args.height), device=device, dtype=args.dtype)
-    # clean up memory
-    del diffusion_pipeline, diffusion_scheduler
+        batch_size=args.batch_size, steps=args.init_steps)
+    # save initial images
+    if args.save_process:
+        os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
+        for i, image_batch in enumerate(init_images):
+            os.makedirs(os.path.join(args.output_dir, "initial_images", f"{i}"), exist_ok=True)
+            for j, image in enumerate(image_batch):
+                image.save(os.path.join(args.output_dir, "initial_images", f"{i}", f"{j}.png"))
+    # release memory
+    del diffusion_pipeline
     torch.cuda.empty_cache()
-    print("[inference] Initial images generated successfully, memory released.")
+    print("[inference] Initial images generated successfully. Memory released.")
 
-    ## Post-Processing
+    ## Mask Generation
     # load owlv2 model
     print("[inference] Loading object detection model...")
     detection_model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
     detection_processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
     print("[inference] Object detection model loaded successfully.")
-    # load inpainting model
-    print("[inference] Loading Stable Diffusion inpainting pipeline...")
-    inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=args.dtype)
-    # load textual inversions
-    for inv_dir in os.listdir(inversion_dir):
-        inv_path = os.path.join(inversion_dir, inv_dir)
-        token_name = f"<{inv_dir}>"
-        inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
-    print("[inference] Pipeline loaded successfully.")
     # loop through the prompts
-    for id, image_batch, object_token, style_token in zip(prompt_ids, init_images, object_tokens, style_tokens):
+    mask_batches = []
+    for id, image_batch, object_token in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
-        classes = object_token["init_tokens"]
-        special_tokens = object_token["special_tokens"]
+        classes = object_token["id_tokens"]
         # detect bounding boxes
         class_batch = [classes]*len(image_batch)
-        bounding_batch = zero_shot_detection(image_batch, class_batch, processor=detection_processor, model=detection_model, device=device)
+        bounding_batch = zero_shot_detection(
+            image_batch, class_batch, processor=detection_processor, model=detection_model,
+            threshold=0, device=device)
         # [showcase]: visualize results
         if args.show_process:
             visualize_boundings(image_batch, bounding_batch)
@@ -227,25 +289,69 @@ if __name__ == "__main__":
                 else:
                     bounding_boxes.append(None)
             mask_bounding_batch.append(bounding_boxes)
-        # generate mask images
-        mask_batch = generate_masks((args.width, args.height), mask_bounding_batch)
+        # generate masks
+        mask_batch = generate_masks(args.default_size, mask_bounding_batch)
+        mask_batches.append(mask_batch)
         # save masks as images
         if args.save_process:
-            # os.makedirs(os.path.join(args.output_dir, "masks", f"{id}"), exist_ok=True)
-            # TODO: save masks as images
-            pass
+            os.makedirs(os.path.join(args.output_dir, "masks"), exist_ok=True)
+            visualize_masks(mask_batch, image_batch, class_batch, save_path=os.path.join(args.output_dir, "masks", f"{id}.png"))
         # [showcase]: visualize masks
         if args.show_process:
             visualize_masks(mask_batch, image_batch, class_batch)
+    # release memory
+    del detection_model, detection_processor
+    torch.cuda.empty_cache()
+    print("[inference] Masks generated successfully. Memory released.")
+
+    ## Impainting Concepts
+    # load inpainting model
+    if args.model_type == "sdxl":
+        print("[inference] Loading Stable Diffusion XL inpainting pipeline...")
+        inpaint_pipeline = AutoPipelineForInpainting.from_pretrained(args.inpaint_model, torch_dtype=torch.float16, variant="fp16")
+        # load textural inversions
+        for inv_dir in os.listdir(args.inversion_dir):
+            inv_path = os.path.join(args.inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
+            token_name = f"<{inv_dir}>"
+            # check if the safetensors files are present
+            assert "learned_embeds.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds.safetensors not found in {inv_path}."
+            assert "learned_embeds_2.safetensors" in os.listdir(inv_path), f"[image generator] learned_embeds_2.safetensors not found in {inv_path}."
+            # load inversion for both text encoders
+            inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=inpaint_pipeline.text_encoder, tokenizer=inpaint_pipeline.tokenizer)
+            inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=inpaint_pipeline.text_encoder_2, tokenizer=inpaint_pipeline.tokenizer_2)
+        print("[inference] Pipeline loaded successfully.")
+    else:
+        print("[inference] Loading Stable Diffusion 2 inpainting pipeline...")
+        inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=torch.float16)
+        # load textual inversions
+        for inv_dir in os.listdir(inversion_dir):
+            inv_path = os.path.join(inversion_dir, inv_dir)
+            if not os.path.isdir(inv_path):
+                continue
+            token_name = f"<{inv_dir}>"
+            inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
+        print("[inference] Pipeline loaded successfully.")
+    # configure pipeline
+    inpaint_pipeline = inpaint_pipeline.to(device)
+    if args.attn_slicing:
+        inpaint_pipeline.enable_attention_slicing()
+    if args.xformer:
+        inpaint_pipeline.enable_xformers_memory_efficient_attention()
+    inpaint_pipeline.enable_model_cpu_offload()
+    # impaint
+    for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, init_images, mask_batches, object_tokens, style_tokens):
+        # extract special tokens
+        special_tokens = object_token["special_tokens"]
         # impanting concepts
         style_prompt = f" in {style_token} style." if style_token is not None else ""
         prompts = [[f"A {token}"+style_prompt for token in special_tokens] for _ in range(len(image_batch))]
-        print(f"[inference] Impainting prompt: {prompts}")
+        print(f"[inference] Impainting for prompt {prompts[0]}...")
         final_images = impaint_concept(
-            image_batch, prompts, mask_batch,
-            pipeline=inpaint_pipeline, steps=args.inpaint_steps,
-            attention_slicing=args.attn_slicing, strength=args.inpaint_strength,
-            device=device, dtype=args.dtype)
+            image_batch, prompts, mask_batch, 
+            pipeline=inpaint_pipeline, size=(args.width, args.height),
+            steps=args.inpaint_steps, strength=args.inpaint_strength)
         # save results
         os.makedirs(os.path.join(args.output_dir, f"{id}"), exist_ok=True)
         for i, image in enumerate(final_images):
@@ -265,7 +371,6 @@ if __name__ == "__main__":
                 ax.axis("off")
             plt.show()
     # release memory
-    del detection_model, detection_processor, inpaint_pipeline
+    del inpaint_pipeline
     torch.cuda.empty_cache()
-    print("[inference] Memory released.")
     print("[inference] Inference completed.")

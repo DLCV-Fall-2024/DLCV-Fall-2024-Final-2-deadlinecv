@@ -133,13 +133,14 @@ def generate_masks(image_size:Tuple[int, int], bounding_batch:List[List[dict]]):
         mask_batch.append(masks)
     return mask_batch
 
-def visualize_masks(mask_batch:List[List[np.ndarray]], image_batch:List[Image.Image], class_batch:List[List[str]]):
+def visualize_masks(mask_batch:List[List[np.ndarray]], image_batch:List[Image.Image], class_batch:List[List[str]], save_path:str=None):
     '''
     Visualize the masks on the images. This function is not necessary, just for verification and showcasing purposes.
     Args:
         mask_batch (List[List[np.ndarray]]): List of list of masks to visualize.
         image_batch (List[Image.Image]): List of PIL images to visualize.
         class_batch (List[List[str]]): List of classes for each image.
+        save_path (str): Path to save the visualization. Default is None.
     '''
     assert len(mask_batch) == len(image_batch), "[mask generator] Batch size of masks and images should be the same."
     # prepare figure
@@ -167,7 +168,10 @@ def visualize_masks(mask_batch:List[List[np.ndarray]], image_batch:List[Image.Im
     for ax in axes[len(image_batch):]:
         ax.axis("off")
     plt.tight_layout()
-    plt.show()
+    if save_path is not None:
+        plt.savefig(save_path)
+    else:
+        plt.show()
 
 # example usage
 if __name__ == "__main__":

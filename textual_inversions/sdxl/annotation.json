@@ -1,0 +1,48 @@
+{
+    "object":
+    {
+        "<cat2>": 
+        {
+            "init_token": "gray cat",
+            "id_token": "cat"
+        },
+        "<dog>":
+        {
+            "init_token": "corgi",
+            "id_token": "dog"
+        },
+        "<dog6>":
+        {
+            "init_token": "short dog",
+            "id_token": "dog"
+        },
+        "<flower_1>":
+        {
+            "init_token": "white flower",
+            "id_token": "flower"
+        },
+        "<pet_cat1>":
+        {
+            "init_token": "short cat",
+            "id_token": "cat"
+        },
+        "<vase>":
+        {
+            "init_token": "red tall vase",
+            "id_token": "vase"
+        },
+        "<wearable_glasses>":
+        {
+            "init_token": "glasses",
+            "id_token": "glasses"
+        }
+    },
+    "style":
+    {
+        "<watercolor>":
+        {
+            "init_token": "watercolor",
+            "id_token": "watercolor"
+        }
+    }
+}
