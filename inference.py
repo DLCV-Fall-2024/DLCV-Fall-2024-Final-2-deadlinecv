@@ -270,6 +270,7 @@ if __name__ == "__main__":
                 # Handle single image case
                 if isinstance(clip_scores, float):
                     clip_scores = [clip_scores]
+            print(f"[Debug] Scores: {clip_scores}")
             # sort images by score
             sorted_images = [image for _, image in sorted(zip(clip_scores, image_batch), reverse=True)]
             good_images.append(sorted_images[:args.image_per_prompt])
