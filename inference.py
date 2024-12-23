@@ -288,16 +288,19 @@ if __name__ == "__main__":
         good_image_batch = []
         for obj_classes, result, image in zip(class_batch, bounding_batch, image_batch):
             bounding_boxes = []
+            discard_flag = False
             for obj_class in obj_classes:
                 if result[obj_class]: # check if the list is not empty
                     bounding_boxes.append(result[obj_class].pop(0))
-                elif num_discarded < args.backup_images: # discard if still have backup quota
-                    num_discarded += 1
-                    continue
-                else: # no more backup quota, no choice but to append None
+                else:
+                    if num_discarded < args.backup_images: # discard if still have backup quota
+                        discard_flag = True
                     bounding_boxes.append(None)
-            mask_bounding_batch.append(bounding_boxes)
-            good_image_batch.append(image)
+            if not discard_flag:
+                mask_bounding_batch.append(bounding_boxes)
+                good_image_batch.append(image)
+            else:
+                num_discarded += 1
         # control the number of images
         mask_bounding_batch = mask_bounding_batch[:args.image_per_prompt]
         good_image_batch = good_image_batch[:args.image_per_prompt]
