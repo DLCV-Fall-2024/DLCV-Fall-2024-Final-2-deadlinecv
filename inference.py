@@ -283,9 +283,8 @@ if __name__ == "__main__":
         mask_batches.append(mask_batch)
         # save masks as images
         if args.save_process:
-            # os.makedirs(os.path.join(args.output_dir, "masks", f"{id}"), exist_ok=True)
-            # TODO: save masks as images
-            pass
+            os.makedirs(os.path.join(args.output_dir, "masks"), exist_ok=True)
+            visualize_masks(mask_batch, image_batch, class_batch, save_path=os.path.join(args.output_dir, "masks", f"{id}.png"))
         # [showcase]: visualize masks
         if args.show_process:
             visualize_masks(mask_batch, image_batch, class_batch)
