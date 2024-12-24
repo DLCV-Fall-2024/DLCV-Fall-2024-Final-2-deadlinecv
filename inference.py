@@ -134,7 +134,7 @@ def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->torch.Te
                 latent = torch.randn(latent_shape)
             else:
                 latent = torch.load(latent_path)
-            latent_list.append(latent)
+        latent_list.append(latent)
 
 def parse_args():
     # arguments
