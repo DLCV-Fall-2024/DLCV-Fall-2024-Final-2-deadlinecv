@@ -38,7 +38,7 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
         images = []
         for i in range(np.ceil(image_per_prompt/batch_size).astype(int)):
             latent_batch = latents[i*batch_size:(i+1)*batch_size] if latents is not None else None
-            latent_batch = torch.tensor(latent_batch) if latent_batch is not None else None
+            latent_batch = torch.stack(latent_batch) if latent_batch is not None else None
             image_batch = pipeline(
                 prompt=prompt, 
                 num_inference_steps=steps, guidance_scale=strength,
