@@ -210,7 +210,7 @@ def parse_args():
             "initial_prompts": [initial_prompt],
             "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
             "style_tokens": [args.style_special_token],
-            "init_latents": [load_latents(args.init_latent_dir, args.image_per_prompt, args.default_size)] if args.init_latent_dir is not None else [None]
+            "init_latents": [load_latents(args.init_latent_dir, args.image_per_prompt, args.default_size)]
         }
     
 
