@@ -125,13 +125,16 @@ def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->torch.Te
     latent_shape = (4, latent_height, latent_width) # 4 channels
     latent_list = []
     for i in range(num):
-        latent_path = os.path.join(latent_dir, f"{i}.pt")
-        if not os.path.exists(latent_path):
-            print(f"[inference] Warning: Latent tensor not enough, generating random latents.")
+        if latent_dir is None:
             latent = torch.randn(latent_shape)
         else:
-            latent = torch.load(latent_path)
-        latent_list.append(latent)
+            latent_path = os.path.join(latent_dir, f"{i}.pt")
+            if not os.path.exists(latent_path):
+                print(f"[inference] Warning: Latent tensor not enough, generating random latents.")
+                latent = torch.randn(latent_shape)
+            else:
+                latent = torch.load(latent_path)
+            latent_list.append(latent)
 
 def parse_args():
     # arguments
