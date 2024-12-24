@@ -111,7 +111,7 @@ def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
         }
     return custom_prompts
 
-def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->torch.Tensor:
+def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->List[torch.Tensor]:
     '''
     Read the first num latent tensors from the latent directory.
     Args:
@@ -119,7 +119,7 @@ def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->torch.Te
         num (int): Number of latent tensors to read.
         image_shape (Tuple[int, int]): Shape of the image to generate.
     Returns:
-        torch.Tensor: The latent tensor.
+        List[torch.Tensor]: A list of latent tensors.
     '''
     latent_height, latent_width = image_shape[0] // 8, image_shape[1] // 8
     latent_shape = (4, latent_height, latent_width) # 4 channels
@@ -135,6 +135,7 @@ def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->torch.Te
             else:
                 latent = torch.load(latent_path)
         latent_list.append(latent)
+    return latent_list
 
 def parse_args():
     # arguments
@@ -215,7 +216,6 @@ def parse_args():
             "style_tokens": [args.style_special_token],
             "init_latents": [load_latents(args.init_latent_dir, args.image_per_prompt, args.default_size)]
         }
-    
 
     return args, prompt_info
 
