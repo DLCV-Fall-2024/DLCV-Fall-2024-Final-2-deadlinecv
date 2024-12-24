@@ -213,6 +213,9 @@ if __name__ == "__main__":
     print(f"[inference] Object tokens: {object_tokens}")
     print(f"[inference] Style tokens: {style_tokens}")
     print(f"[inference] Initial seeds: {args.seeds}")
+    # write seeds to file
+    with open(os.path.join(args.output_dir, "seeds.txt"), "w") as f:
+        f.write("\n".join(map(str, args.seeds)))
     ## Initial Image Generation
     # load diffusion model
     if args.model_type == "sdxl":
