@@ -141,11 +141,15 @@ def parse_args():
     parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-xl-base-1.0", help="Stable Diffusion model name or path.")
     parser.add_argument("--inpaint_model", type=str, default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", help="Stable Diffusion inpainting model name or path.")
     parser.add_argument("--mask_padding", type=int, default=None, help="Inpainting with mask padding.")
+    parser.add_argument("--seeds", nargs="+", type=int, default=None, help="List of random seeds for image generation.")
     args = parser.parse_args()
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
     assert args.image_per_prompt > 0, "[inference] Number of images per prompt should be greater than 0."
     assert args.backup_images >= 0, "[inference] Number of backup images should be greater than or equal to 0."
+    if len(args.seeds) != args.image_per_prompt:
+        print("[inference] Warning: Number of seeds should match the number of images per prompt, using random seeds.")
+        args.seeds = list(np.random.randint(0, 10000, args.image_per_prompt))
     # assign precision
     if args.precision == 16:
         args.dtype = torch.float16
@@ -252,7 +256,7 @@ if __name__ == "__main__":
     # generate Initial Images
     init_images = generate_stable_diffusion(
         initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt+args.backup_images,
-        batch_size=args.batch_size, steps=args.init_steps)
+        batch_size=args.batch_size, steps=args.init_steps, seeds=args.seeds)
     # release memory
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     del diffusion_pipeline

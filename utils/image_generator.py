@@ -9,6 +9,7 @@ import numpy as np
 def generate_stable_diffusion(prompts:List[str], pipeline:any=None, 
                               steps:int=25, strength:float=7.5,
                               image_per_prompt:int=10, batch_size:int=1,
+                              seeds:List[int]=None
                               ) -> List[List[Image.Image]]:
     """
     Generates images using a Stable Diffusion pipeline.
@@ -20,10 +21,13 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
         strength (float, optional): Guidance scale for generation. Default is 7.5.
         image_per_prompt (int, optional): Number of images to generate per prompt. Default is 10.
         batch_size (int, optional): Batch size for inference. Default is 1.
+        seeds (List[int], optional): List of random seeds for image generation. Default is None.
     Returns:
         List[List[Image.Image]]: A list of list of generated images for each prompt.
     """
     assert len(prompts) > 0, "[image generator] No prompts provided."
+    if seeds is None:
+        seeds = range(len(prompts))
     # handle if no pipeline is provided
     if pipeline is None:
         print("[image generator] No pipeline provided. Loading default pipeline...")
@@ -32,9 +36,11 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
         print("[image generator] Pipeline loaded successfully.")
     # generate images
     results = []
-    for prompt in prompts:
+    for prompt, seed in zip(prompts, seeds):
         images = []
         for _ in range(np.ceil(image_per_prompt/batch_size).astype(int)):
+            torch.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
             image_batch = pipeline(prompt=prompt, 
                               num_inference_steps=steps, guidance_scale=strength,
                               num_images_per_prompt=batch_size)

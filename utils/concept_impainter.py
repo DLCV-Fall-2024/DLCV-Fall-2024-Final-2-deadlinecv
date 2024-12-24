@@ -1,6 +1,7 @@
 from typing import List, Tuple
 import numpy as np
 from PIL import Image
+import torch
 
 def impaint_concept(images:List[Image.Image], prompt_sets:List[List[str]], mask_sets:List[List[np.ndarray]],
                     pipeline:any=None,
@@ -41,12 +42,16 @@ def impaint_concept(images:List[Image.Image], prompt_sets:List[List[str]], mask_
             if mask_padding is not None:
                 print(f"[concept impainter] Using negative_prompt and mask padding ...")
                 negative_prompt = "bad architecture, unstable, poor details, blurry, bad quality, unrealistic background, low quality"
+                torch.manual_seed(4129889)
+                torch.cuda.manual_seed_all(4129889)
                 image = pipeline(prompt=prompt, negative_prompt=negative_prompt, image=image, mask_image=mask_image,
                              width=image.width, height=image.height,
                              num_inference_steps=steps, strength=strength, padding_mask_crop=mask_padding).images[0]
             else:
                 print(f"[concept impainter] Using negative_prompt ...")
                 negative_prompt = "bad architecture, unstable, poor details, blurry, bad quality, unrealistic background, low quality"
+                torch.manual_seed(4129889)
+                torch.cuda.manual_seed_all(4129889)
                 image = pipeline(prompt=prompt, negative_prompt=negative_prompt, image=image, mask_image=mask,
                              width=image.width, height=image.height,
                              num_inference_steps=steps, strength=strength).images[0]

@@ -38,6 +38,8 @@ def zero_shot_detection(images:List[Image.Image], classes:List[List[str]],
     inputs = processor(text=classes, images=images, return_tensors="pt").to(device)
     # zero-shot object detection
     with torch.no_grad():
+        torch.manual_seed(4129889)
+        torch.cuda.manual_seed_all(4129889)
         outputs = model(**inputs)
     # retrieve results
     logits = torch.max(outputs["logits"], dim=-1)
