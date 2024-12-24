@@ -256,8 +256,9 @@ if __name__ == "__main__":
     # release memory
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     del diffusion_pipeline
+    with torch.no_grad():
+        torch.cuda.empty_cache()
     gc.collect()
-    torch.cuda.empty_cache()
     print("[inference] Initial images generated successfully. Memory released.")
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # save initial images
@@ -325,8 +326,9 @@ if __name__ == "__main__":
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # release memory
     del detection_model, detection_processor
+    with torch.no_grad():
+        torch.cuda.empty_cache()
     gc.collect()
-    torch.cuda.empty_cache()
     
     print("[inference] Masks generated successfully. Memory released.")
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -402,7 +404,8 @@ if __name__ == "__main__":
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # release memory
     del inpaint_pipeline
+    with torch.no_grad():
+        torch.cuda.empty_cache()
     gc.collect()
-    torch.cuda.empty_cache()
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     print("[inference] Inference completed.")
