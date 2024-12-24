@@ -228,6 +228,7 @@ if __name__ == "__main__":
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
         print("[inference] Pipeline loaded successfully.")
         print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+        print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     else:
         print("[inference] Loading Stable Diffusion 2 pipeline...")
         diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
@@ -242,6 +243,7 @@ if __name__ == "__main__":
             diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
         print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+        print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     # configure pipeline
     diffusion_pipeline = diffusion_pipeline.to(device)
     if args.attn_slicing:
@@ -255,12 +257,14 @@ if __name__ == "__main__":
         batch_size=args.batch_size, steps=args.init_steps)
     # release memory
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     del diffusion_pipeline
     with torch.no_grad():
         torch.cuda.empty_cache()
     gc.collect()
     print("[inference] Initial images generated successfully. Memory released.")
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     # save initial images
     if args.save_process:
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
@@ -276,10 +280,12 @@ if __name__ == "__main__":
     detection_processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
     print("[inference] Object detection model loaded successfully.")
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     # loop through the prompts
     mask_batches = []
     good_images = []
     for id, image_batch, object_token in zip(prompt_ids, init_images, object_tokens):
+        print(len(image_batch))
         # upack object tokens
         classes = object_token["id_tokens"]
         # detect bounding boxes
@@ -324,6 +330,7 @@ if __name__ == "__main__":
         if args.show_process:
             visualize_masks(mask_batch, good_image_batch, class_batch)
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     # release memory
     del detection_model, detection_processor
     with torch.no_grad():
@@ -332,6 +339,7 @@ if __name__ == "__main__":
     
     print("[inference] Masks generated successfully. Memory released.")
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     ## Impainting Concepts
     # load inpainting model
     if args.model_type == "sdxl":
@@ -352,6 +360,7 @@ if __name__ == "__main__":
             inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=inpaint_pipeline.text_encoder_2, tokenizer=inpaint_pipeline.tokenizer_2)
         print("[inference] Pipeline loaded successfully.")
         print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+        print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     else:
         print("[inference] Loading Stable Diffusion 2 inpainting pipeline...")
         inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=torch.float16)
@@ -364,6 +373,7 @@ if __name__ == "__main__":
             inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
         print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+        print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     # configure pipeline
     inpaint_pipeline = inpaint_pipeline.to(device)
     if args.attn_slicing:
@@ -402,10 +412,12 @@ if __name__ == "__main__":
                 ax.axis("off")
             plt.show()
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     # release memory
     del inpaint_pipeline
     with torch.no_grad():
         torch.cuda.empty_cache()
     gc.collect()
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
+    print(f"Reserved Memory: {torch.cuda.memory_reserved() / 1e6} MB")
     print("[inference] Inference completed.")
