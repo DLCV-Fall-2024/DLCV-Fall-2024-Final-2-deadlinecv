@@ -111,6 +111,28 @@ def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
         }
     return custom_prompts
 
+def load_latents(latent_dir:str, num:int, image_shape:Tuple[int, int])->torch.Tensor:
+    '''
+    Read the first num latent tensors from the latent directory.
+    Args:
+        latent_dir (str): Path to the latent tensor.
+        num (int): Number of latent tensors to read.
+        image_shape (Tuple[int, int]): Shape of the image to generate.
+    Returns:
+        torch.Tensor: The latent tensor.
+    '''
+    latent_height, latent_width = image_shape[0] // 8, image_shape[1] // 8
+    latent_shape = (4, latent_height, latent_width) # 4 channels
+    latent_list = []
+    for i in range(num):
+        latent_path = os.path.join(latent_dir, f"{i}.pt")
+        if not os.path.exists(latent_path):
+            print(f"[inference] Warning: Latent tensor not enough, generating random latents.")
+            latent = torch.randn(latent_shape)
+        else:
+            latent = torch.load(latent_path)
+        latent_list.append(latent)
+
 def parse_args():
     # arguments
     parser = argparse.ArgumentParser(description="Inference script for object detection.")
@@ -120,7 +142,6 @@ def parse_args():
     parser.add_argument("--id_tokens", nargs="+", type=str, default=["dog", "cat"], help="List of tags for the detection.")
     parser.add_argument("--style_special_token", type=str, default=None, help="Special token for style inversion.")
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
-    parser.add_argument("--backup_images", type=int, default=0, help="Number of additional images to generate for better performance.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
@@ -140,11 +161,12 @@ def parse_args():
     parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-xl-base-1.0", help="Stable Diffusion model name or path.")
     parser.add_argument("--inpaint_model", type=str, default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", help="Stable Diffusion inpainting model name or path.")
     parser.add_argument("--mask_padding", type=int, default=None, help="Inpainting with mask padding.")
+    parser.add_argument("--init_latent_dir", type=str, default=None, help="Path to the latent tensor for image generation.")
     args = parser.parse_args()
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
     assert args.image_per_prompt > 0, "[inference] Number of images per prompt should be greater than 0."
-    assert args.backup_images >= 0, "[inference] Number of backup images should be greater than or equal to 0."
+    args.image_per_prompt = np.ceil(args.image_per_prompt/args.batch_size).astype(int) * args.batch_size # make it divisible by batch size
     # assign precision
     if args.precision == 16:
         args.dtype = torch.float16
@@ -163,6 +185,15 @@ def parse_args():
             token_annotation = json.load(f)
     else:
         token_annotation = {}
+    # default image size
+    if args.model_type == "sdxl":
+        args.default_size = (1024, 1024)
+    elif args.model_type == "sd2":
+        args.default_size = (512, 512)
+    else:
+        print("[inference] Warning: Unusual model type, defaulting to SDXL.")
+        args.default_size = (1024, 1024)
+        args.model_type = "sdxl"
     # handle id tokens
     if len(args.id_tokens) != len(args.init_tokens):
         print("[inference] Warning: Number of id tokens should match the number of initial tokens, using the initial tokens as id tokens.")
@@ -178,17 +209,10 @@ def parse_args():
             "id": [0],
             "initial_prompts": [initial_prompt],
             "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
-            "style_tokens": [args.style_special_token]
+            "style_tokens": [args.style_special_token],
+            "init_latents": [load_latents(args.init_latent_dir, args.image_per_prompt, args.default_size)] if args.latent_path is not None else None
         }
-    # default image size
-    if args.model_type == "sdxl":
-        args.default_size = (1024, 1024)
-    elif args.model_type == "sd2":
-        args.default_size = (512, 512)
-    else:
-        print("[inference] Warning: Unusual model type, defaulting to SDXL.")
-        args.default_size = (1024, 1024)
-        args.model_type = "sdxl"
+    
 
     return args, prompt_info
 
@@ -204,10 +228,17 @@ if __name__ == "__main__":
     initial_prompts = prompt_info["initial_prompts"]
     object_tokens = prompt_info["object_tokens"]
     style_tokens = prompt_info["style_tokens"]
+    init_latents = prompt_info["init_latents"]
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
     print(f"[inference] Style tokens: {style_tokens}")
-
+    # save latents for reproducibility
+    if args.save_process:
+        for id, latent in zip(prompt_ids, init_latents):
+            os.makedirs(os.path.join(args.output_dir, "initial_latents", f"{id}"), exist_ok=True)
+            for i, latent_tensor in enumerate(latent):
+                torch.save(latent_tensor, os.path.join(args.output_dir, "initial_latents", f"{id}", f"{i}.pt"))
+    
     ## Initial Image Generation
     # load diffusion model
     if args.model_type == "sdxl":
@@ -250,8 +281,8 @@ if __name__ == "__main__":
     diffusion_pipeline.enable_model_cpu_offload()
     # generate Initial Images
     init_images = generate_stable_diffusion(
-        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt+args.backup_images,
-        batch_size=args.batch_size, steps=args.init_steps)
+        initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt,
+        batch_size=args.batch_size, steps=args.init_steps, latents=init_latents)
     # release memory
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     del diffusion_pipeline
@@ -275,7 +306,6 @@ if __name__ == "__main__":
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # loop through the prompts
     mask_batches = []
-    good_images = []
     for id, image_batch, object_token in zip(prompt_ids, init_images, object_tokens):
         # upack object tokens
         classes = object_token["id_tokens"]
@@ -289,37 +319,24 @@ if __name__ == "__main__":
             visualize_boundings(image_batch, bounding_batch)
         # get the best bounding boxes for each class
         mask_bounding_batch = []
-        num_discarded = 0
-        good_image_batch = []
         for obj_classes, result, image in zip(class_batch, bounding_batch, image_batch):
             bounding_boxes = []
-            discard_flag = False
             for obj_class in obj_classes:
                 if result[obj_class]: # check if the list is not empty
                     bounding_boxes.append(result[obj_class].pop(0))
                 else:
-                    if num_discarded < args.backup_images: # discard if still have backup quota
-                        discard_flag = True
                     bounding_boxes.append(None)
-            if not discard_flag:
-                mask_bounding_batch.append(bounding_boxes)
-                good_image_batch.append(image)
-            else:
-                num_discarded += 1
-        # control the number of images
-        mask_bounding_batch = mask_bounding_batch[:args.image_per_prompt]
-        good_image_batch = good_image_batch[:args.image_per_prompt]
+            mask_bounding_batch.append(bounding_boxes)
         # generate masks
         mask_batch = generate_masks(args.default_size, mask_bounding_batch)
         mask_batches.append(mask_batch)
-        good_images.append(good_image_batch)
         # save masks as images
         if args.save_process:
             os.makedirs(os.path.join(args.output_dir, "masks"), exist_ok=True)
-            visualize_masks(mask_batch, good_image_batch, class_batch, save_path=os.path.join(args.output_dir, "masks", f"{id}.png"))
+            visualize_masks(mask_batch, image_batch, class_batch, save_path=os.path.join(args.output_dir, "masks", f"{id}.png"))
         # [showcase]: visualize masks
         if args.show_process:
-            visualize_masks(mask_batch, good_image_batch, class_batch)
+            visualize_masks(mask_batch, image_batch, class_batch)
     print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # release memory
     del detection_model, detection_processor
@@ -367,7 +384,7 @@ if __name__ == "__main__":
         inpaint_pipeline.enable_xformers_memory_efficient_attention()
     inpaint_pipeline.enable_model_cpu_offload()
     # impaint
-    for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, good_images, mask_batches, object_tokens, style_tokens):
+    for id, image_batch, mask_batch, object_token, style_token in zip(prompt_ids, init_images, mask_batches, object_tokens, style_tokens):
         # extract special tokens
         special_tokens = object_token["special_tokens"]
         # impanting concepts

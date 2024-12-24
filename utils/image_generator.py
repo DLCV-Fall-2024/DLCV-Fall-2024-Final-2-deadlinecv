@@ -9,6 +9,7 @@ import numpy as np
 def generate_stable_diffusion(prompts:List[str], pipeline:any=None, 
                               steps:int=25, strength:float=7.5,
                               image_per_prompt:int=10, batch_size:int=1,
+                              latents:torch.Tensor=None
                               ) -> List[List[Image.Image]]:
     """
     Generates images using a Stable Diffusion pipeline.
@@ -20,6 +21,7 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
         strength (float, optional): Guidance scale for generation. Default is 7.5.
         image_per_prompt (int, optional): Number of images to generate per prompt. Default is 10.
         batch_size (int, optional): Batch size for inference. Default is 1.
+        latent (torch.Tensor, optional): Latent tensor for generation. Default is None.
     Returns:
         List[List[Image.Image]]: A list of list of generated images for each prompt.
     """
@@ -34,11 +36,12 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
     results = []
     for prompt in prompts:
         images = []
-        for _ in range(np.ceil(image_per_prompt/batch_size).astype(int)):
-            image_batch = pipeline(prompt=prompt, 
-                              num_inference_steps=steps, guidance_scale=strength,
-                              num_images_per_prompt=batch_size)
-
+        for i in range(np.ceil(image_per_prompt/batch_size).astype(int)):
+            latent_batch = latents[i*batch_size:(i+1)*batch_size] if latents is not None else None
+            image_batch = pipeline(
+                prompt=prompt, 
+                num_inference_steps=steps, guidance_scale=strength,
+                num_images_per_prompt=batch_size, latent=latent_batch)
             images.extend(image_batch.images)
         results.append(images[:image_per_prompt])
     return results
