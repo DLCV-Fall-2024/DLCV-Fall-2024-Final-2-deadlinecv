@@ -241,7 +241,7 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(args.output_dir, "initial_latents", f"{id}"), exist_ok=True)
             for i, latent_tensor in enumerate(latent):
                 torch.save(latent_tensor, os.path.join(args.output_dir, "initial_latents", f"{id}", f"{i}.pt"))
-    
+    exit()
     ## Initial Image Generation
     # load diffusion model
     if args.model_type == "sdxl":
