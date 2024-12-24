@@ -26,8 +26,6 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
         List[List[Image.Image]]: A list of list of generated images for each prompt.
     """
     assert len(prompts) > 0, "[image generator] No prompts provided."
-    if seeds is None:
-        seeds = range(len(prompts))
     # handle if no pipeline is provided
     if pipeline is None:
         print("[image generator] No pipeline provided. Loading default pipeline...")
@@ -36,11 +34,18 @@ def generate_stable_diffusion(prompts:List[str], pipeline:any=None,
         print("[image generator] Pipeline loaded successfully.")
     # generate images
     results = []
-    for prompt, seed in zip(prompts, seeds):
+    for prompt in prompts:
         images = []
-        for _ in range(np.ceil(image_per_prompt/batch_size).astype(int)):
-            torch.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
+        if seeds is None:
+            seeds = range(np.ceil(image_per_prompt/batch_size).astype(int))
+        for i in range(np.ceil(image_per_prompt/batch_size).astype(int)):
+            if i > len(seeds):
+                torch.manual_seed(seeds[-1]+i)
+                torch.cuda.manual_seed_all(seeds[-1]+i)
+                print(f"[image generator] Warning: Using seed {seeds[-1]+i}.")
+            else:
+                torch.manual_seed(seeds[i])
+                torch.cuda.manual_seed_all(seeds[i])
             image_batch = pipeline(prompt=prompt, 
                               num_inference_steps=steps, guidance_scale=strength,
                               num_images_per_prompt=batch_size)
