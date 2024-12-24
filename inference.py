@@ -235,7 +235,6 @@ if __name__ == "__main__":
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
     print(f"[inference] Style tokens: {style_tokens}")
-    print(f"[inference] Initial Latents: {init_latents}")
     # save latents for reproducibility
     if args.save_process:
         for id, latent in zip(prompt_ids, init_latents):
