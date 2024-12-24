@@ -296,7 +296,7 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(args.output_dir, "initial_images", f"{i}"), exist_ok=True)
             for j, image in enumerate(image_batch):
                 image.save(os.path.join(args.output_dir, "initial_images", f"{i}", f"{j}.png"))
-
+    exit()
     ## Mask Generation
     # load owlv2 model
     print("[inference] Loading object detection model...")
