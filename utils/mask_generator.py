@@ -34,18 +34,26 @@ def zero_shot_detection(images:List[Image.Image], classes:List[List[str]],
         print("[mask generator] Model and processor loaded successfully.")
     model.to(device)
     model.eval()
-    # preprocess images
-    inputs = processor(text=classes, images=images, return_tensors="pt").to(device)
-    # zero-shot object detection
-    with torch.no_grad():
-        torch.manual_seed(4129889)
-        torch.cuda.manual_seed_all(4129889)
-        outputs = model(**inputs)
-    # retrieve results
-    logits = torch.max(outputs["logits"], dim=-1)
-    scores = torch.sigmoid(logits.values).cpu().detach().numpy()
-    labels = logits.indices.cpu().detach().numpy()
-    boxes = outputs["pred_boxes"].cpu().detach().numpy()
+    logits = []
+    labels = []
+    boxes = []
+    scores = []
+    for cls, image in zip(classes, images):
+        input = processor(text=[cls], images=[image], return_tensors="pt").to(device)
+        with torch.no_grad():
+            torch.manual_seed(4129889)
+            torch.cuda.manual_seed_all(4129889)
+            output = model(**input)
+        # retrieve results
+        logit = torch.max(output["logits"], dim=-1)
+        score = torch.sigmoid(logit.values).cpu().detach().numpy()[0]
+        label = logit.indices.cpu().detach().numpy()[0]
+        box = output["pred_boxes"].cpu().detach().numpy()[0]
+        # append results
+        logits.append(logit)
+        labels.append(label)
+        boxes.append(box)
+        scores.append(score)
     # post-process results
     results = []
     for i in range(len(images)):
