@@ -44,13 +44,14 @@ def impaint_concept(images:List[Image.Image], prompt_sets:List[List[str]], mask_
                 image = pipeline(prompt=prompt, negative_prompt=negative_prompt, image=image, mask_image=mask_image,
                              width=image.width, height=image.height,
                              num_inference_steps=steps, strength=strength, padding_mask_crop=mask_padding).images[0]
+                print(f"[Debug] image device: {image.device}")
             else:
                 print(f"[concept impainter] Using negative_prompt ...")
                 negative_prompt = "bad architecture, unstable, poor details, blurry, bad quality, unrealistic background, low quality"
                 image = pipeline(prompt=prompt, negative_prompt=negative_prompt, image=image, mask_image=mask,
                              width=image.width, height=image.height,
                              num_inference_steps=steps, strength=strength).images[0]
-                
+                print(f"[Debug] image device: {image.device}")
         image = image.resize(size, Image.LANCZOS) 
         results.append(image)
     return results
