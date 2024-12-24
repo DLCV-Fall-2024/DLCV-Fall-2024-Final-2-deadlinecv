@@ -128,7 +128,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1126, help="Random seed for reproducibility.")
     parser.add_argument("--init_steps", type=int, default=25, help="Number of steps for initial image generation.")
     parser.add_argument("--inpaint_steps", type=int, default=25, help="Number of steps for inpainting.")
-    parser.add_argument("--inpaint_strength", type=float, default=1, help="Strength of inpainting.")
+    parser.add_argument("--inpaint_strength", type=float, default=0.7, help="Strength of inpainting.")
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size for image generation.")
     parser.add_argument("--attn_slicing", action="store_true", help="Use attention slicing for image generation.")
     parser.add_argument("--xformer", action="store_true", help="Use memory efficient attention for image generation.")
@@ -140,6 +140,7 @@ def parse_args():
     parser.add_argument("--model_type", type=str, default="sdxl", help="Type of model to use for inference. Options: 'sdxl' or 'sd2'.")
     parser.add_argument("--sd_model", type=str, default="stabilityai/stable-diffusion-xl-base-1.0", help="Stable Diffusion model name or path.")
     parser.add_argument("--inpaint_model", type=str, default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", help="Stable Diffusion inpainting model name or path.")
+    parser.add_argument("--mask_padding", type=int, default=None, help="Inpainting with mask padding.")
     args = parser.parse_args()
     # assertions
     assert len(args.special_tokens) == len(args.init_tokens), "[inference] Number of special tokens should match the number of initial tokens."
@@ -226,6 +227,7 @@ if __name__ == "__main__":
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder, tokenizer=diffusion_pipeline.tokenizer)
             diffusion_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=diffusion_pipeline.text_encoder_2, tokenizer=diffusion_pipeline.tokenizer_2)
         print("[inference] Pipeline loaded successfully.")
+        print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     else:
         print("[inference] Loading Stable Diffusion 2 pipeline...")
         diffusion_scheduler = EulerDiscreteScheduler.from_pretrained(args.sd_model, subfolder="scheduler")
@@ -239,6 +241,7 @@ if __name__ == "__main__":
             token_name = f"<{inv_dir}>"
             diffusion_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
+        print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # configure pipeline
     diffusion_pipeline = diffusion_pipeline.to(device)
     if args.attn_slicing:
@@ -251,9 +254,11 @@ if __name__ == "__main__":
         initial_prompts, pipeline=diffusion_pipeline, image_per_prompt=args.image_per_prompt+args.backup_images,
         batch_size=args.batch_size, steps=args.init_steps)
     # release memory
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     del diffusion_pipeline
     torch.cuda.empty_cache()
     print("[inference] Initial images generated successfully. Memory released.")
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # save initial images
     if args.save_process:
         os.makedirs(os.path.join(args.output_dir, "initial_images"), exist_ok=True)
@@ -268,6 +273,7 @@ if __name__ == "__main__":
     detection_model = Owlv2ForObjectDetection.from_pretrained("google/owlv2-base-patch16-ensemble")
     detection_processor = Owlv2Processor.from_pretrained("google/owlv2-base-patch16-ensemble")
     print("[inference] Object detection model loaded successfully.")
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # loop through the prompts
     mask_batches = []
     good_images = []
@@ -315,17 +321,19 @@ if __name__ == "__main__":
         # [showcase]: visualize masks
         if args.show_process:
             visualize_masks(mask_batch, good_image_batch, class_batch)
-    
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # release memory
     del detection_model, detection_processor
     torch.cuda.empty_cache()
+    
     print("[inference] Masks generated successfully. Memory released.")
-
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     ## Impainting Concepts
     # load inpainting model
     if args.model_type == "sdxl":
         print("[inference] Loading Stable Diffusion XL inpainting pipeline...")
         inpaint_pipeline = AutoPipelineForInpainting.from_pretrained(args.inpaint_model, torch_dtype=torch.float16, variant="fp16")
+        print("[inference] Loading Sdxl Textual Inversion.")
         # load textural inversions
         for inv_dir in os.listdir(args.inversion_dir):
             inv_path = os.path.join(args.inversion_dir, inv_dir)
@@ -339,6 +347,7 @@ if __name__ == "__main__":
             inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds.safetensors"), token=token_name, text_encoder=inpaint_pipeline.text_encoder, tokenizer=inpaint_pipeline.tokenizer)
             inpaint_pipeline.load_textual_inversion(os.path.join(inv_path, "learned_embeds_2.safetensors"), token=token_name, text_encoder=inpaint_pipeline.text_encoder_2, tokenizer=inpaint_pipeline.tokenizer_2)
         print("[inference] Pipeline loaded successfully.")
+        print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     else:
         print("[inference] Loading Stable Diffusion 2 inpainting pipeline...")
         inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(args.inpaint_model, torch_dtype=torch.float16)
@@ -350,6 +359,7 @@ if __name__ == "__main__":
             token_name = f"<{inv_dir}>"
             inpaint_pipeline.load_textual_inversion(inv_path, token=token_name)
         print("[inference] Pipeline loaded successfully.")
+        print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # configure pipeline
     inpaint_pipeline = inpaint_pipeline.to(device)
     if args.attn_slicing:
@@ -368,7 +378,7 @@ if __name__ == "__main__":
         final_images = impaint_concept(
             image_batch, prompts, mask_batch, 
             pipeline=inpaint_pipeline, size=(args.width, args.height),
-            steps=args.inpaint_steps, strength=args.inpaint_strength)
+            steps=args.inpaint_steps, strength=args.inpaint_strength, mask_padding=args.mask_padding)
         # save results
         os.makedirs(os.path.join(args.output_dir, f"{id}"), exist_ok=True)
         for i, image in enumerate(final_images):
@@ -387,7 +397,9 @@ if __name__ == "__main__":
             for ax in axes[len(final_images):]:
                 ax.axis("off")
             plt.show()
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     # release memory
     del inpaint_pipeline
     torch.cuda.empty_cache()
+    print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1e6} MB")
     print("[inference] Inference completed.")
