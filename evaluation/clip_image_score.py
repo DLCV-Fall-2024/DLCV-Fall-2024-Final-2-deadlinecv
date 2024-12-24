@@ -8,17 +8,20 @@ from collections import defaultdict
 def load_images_from_folder(folder_path: str) -> List[Tuple[str, Image.Image]]:
     image_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.gif')
     images = []
+    fns = []
     if type(folder_path) == str:
         folder_path = [folder_path]
     for fd_path in folder_path:
         for filename in os.listdir(fd_path):
             if filename.lower().endswith(image_extensions):
+                fns.append(filename)
                 file_path = os.path.join(fd_path, filename)
                 try:
                     with Image.open(file_path) as img:
                         images.append((file_path, img.convert('RGB')))
                 except IOError:
                     print(f"Error opening {file_path}. Skipping.")
+    print(f"filenames: {fns}")
     return images
 
 def calculate_clip_scores(input_images: List[Tuple[str, Image.Image]], 

@@ -86,6 +86,7 @@ if __name__ == '__main__':
         key, value = list(data.items())[args.setting]
         
         input_folder_path = all_input_dirs[args.setting]
+        
         output_folder_path = os.path.join(output_dir, str(args.setting))
 
         src = value['src_image']

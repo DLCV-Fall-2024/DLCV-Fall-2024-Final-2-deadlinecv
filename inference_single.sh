@@ -1,2 +1,2 @@
 #!/bin/bash
-python3 inference.py --inversion_dir textual_inversions/sd2 --precision 32 --init_steps 10 --inpaint_steps 10
+python3 inference.py --inversion_dir textual_inversions/sd2 --precision 32 --init_steps 10 --inpaint_steps 10 --sd_model stable-diffusion-2-1-base --inpaint_model stable-diffusion-2-inpainting

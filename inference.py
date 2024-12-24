@@ -9,7 +9,6 @@ from utils.mask_generator import zero_shot_detection, generate_masks, visualize_
 from utils.concept_impainter import impaint_concept
 import numpy as np
 import matplotlib.pyplot as plt
-from transformers import CLIPModel, CLIPProcessor
 
 def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     '''
