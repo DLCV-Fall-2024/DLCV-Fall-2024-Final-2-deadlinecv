@@ -235,13 +235,14 @@ if __name__ == "__main__":
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
     print(f"[inference] Style tokens: {style_tokens}")
+    print(f"[inference] Initial Latents: {init_latents}")
     # save latents for reproducibility
     if args.save_process:
         for id, latent in zip(prompt_ids, init_latents):
             os.makedirs(os.path.join(args.output_dir, "initial_latents", f"{id}"), exist_ok=True)
             for i, latent_tensor in enumerate(latent):
                 torch.save(latent_tensor, os.path.join(args.output_dir, "initial_latents", f"{id}", f"{i}.pt"))
-    exit()
+    
     ## Initial Image Generation
     # load diffusion model
     if args.model_type == "sdxl":
