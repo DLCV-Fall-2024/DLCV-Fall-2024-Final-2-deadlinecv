@@ -212,7 +212,7 @@ if __name__ == "__main__":
     print(f"[inference] Prompts: {initial_prompts}")
     print(f"[inference] Object tokens: {object_tokens}")
     print(f"[inference] Style tokens: {style_tokens}")
-
+    print(f"[inference] Initial seeds: {args.seeds}")
     ## Initial Image Generation
     # load diffusion model
     if args.model_type == "sdxl":
