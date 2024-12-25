@@ -58,9 +58,9 @@ python3 inference.py \
     --id_tokens "cat" "glasses" \
     --inversion_dir textual_inversions/sdxl \
     --image_per_prompt 10 \
-    --seeds 0 1 2 3 4 5 6 7 8 9 \
+    --seeds 641 533 521 585 538 555 667 584 519 610 \
     --output_dir $2 \
-    --inpaint_strength 0.8 \
+    --inpaint_strength 0.6 \
     --init_steps 25 \
     --inpaint_steps 50 \
     --seed 4129889 \
