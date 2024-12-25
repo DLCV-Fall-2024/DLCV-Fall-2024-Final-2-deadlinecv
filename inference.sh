@@ -37,11 +37,11 @@ python3 inference.py \
     --json $1 \
     --prompt_id "2" \
     --special_tokens "<dog>" "<pet_cat1>" "<dog6>" \
-    --init_tokens "dog" "cat" "dog" \
+    --init_tokens "little dog" "cat" "little dog" \
     --id_tokens "dog" "cat" "dog" \
     --inversion_dir textual_inversions/sdxl \
     --image_per_prompt 10 \
-    --seeds 0 1 2 3 4 5 6 7 8 9 \
+    --seeds 109 101 116 113 137 134 148 149 141 158 \
     --output_dir $2 \
     --inpaint_strength 0.8 \
     --init_steps 25 \

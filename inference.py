@@ -179,8 +179,8 @@ def parse_args():
         with open(args.json, "r") as f:
             data = json.load(f)
             initial_prompt = data[args.prompt_id]["prompt"].rstrip('.').replace(">,", ">")
-        if (args.prompt_id == 2):
-            initial_prompt = "Two dogs and a cat near a forest."
+        if (args.prompt_id == "2"):
+            initial_prompt = "Two little dogs and a cat near a forest."
         else:
             for special_token, init_token in zip(args.special_tokens, args.init_tokens):
                 initial_prompt = initial_prompt.replace(special_token, init_token)
