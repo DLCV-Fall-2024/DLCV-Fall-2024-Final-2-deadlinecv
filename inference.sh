@@ -1,2 +1,68 @@
 #!/bin/bash
-python3 inference.py --json Data/prompts.json --inversion_dir textual_inversions/sdxl
+python3 inference.py \
+    --json $1 \
+    --prompt_id 0 \
+    --special_tokens "<cat2>" "<dog6>" \
+    --init_tokens "cat" "cat" \
+    --id_tokens "cat" "cat" \
+    --inversion_dir textual_inversions/sdxl \
+    --image_per_prompt 10 \
+    --seeds 7 5 43 45 72 42 32 55 35 14 \
+    --output_dir $2 \
+    --inpaint_strength 0.8 \
+    --init_steps 25 \
+    --inpaint_steps 50 \
+    --seed 36 \
+    --batch_size 1 \
+    --save_process \
+    --mask_padding 32
+python3 inference.py \
+    --json $1 \
+    --prompt_id 1 \
+    --special_tokens "<flower_1>" "<vase>" \
+    --init_tokens "white flower" "tall red vase" \
+    --id_tokens "flower" "vase" \
+    --inversion_dir textual_inversions/sdxl \
+    --image_per_prompt 10 \
+    --seeds 12 0 41 9 108 116 85 1 99 39 \
+    --output_dir $2 \
+    --inpaint_strength 0.8 \
+    --init_steps 25 \
+    --inpaint_steps 50 \
+    --seed 36 \
+    --batch_size 1 \
+    --save_process \
+    --mask_padding 32
+python3 inference.py \
+    --json $1 \
+    --prompt_id 2 \
+    --special_tokens "<dog>" "<pet_cat1>" "<dog6>" \
+    --init_tokens "dog" "cat" "dog" \
+    --id_tokens "dog" "cat" "dog" \
+    --inversion_dir textual_inversions/sdxl \
+    --image_per_prompt 10 \
+    --seeds 0 1 2 3 4 5 6 7 8 9 \
+    --output_dir $2 \
+    --inpaint_strength 0.8 \
+    --init_steps 25 \
+    --inpaint_steps 50 \
+    --seed 4129889 \
+    --batch_size 1 \
+    --save_process \
+    --mask_padding 32
+python3 inference.py \
+    --json $1 \
+    --prompt_id 3 \
+    --special_tokens "<cat2>" "<wearable_glasses>" \
+    --init_tokens "grey cat" "brown glasses" \
+    --id_tokens "cat" "glasses" \
+    --inversion_dir textual_inversions/sdxl \
+    --image_per_prompt 10 \
+    --seeds 0 1 2 3 4 5 6 7 8 9 \
+    --output_dir $2 \
+    --inpaint_strength 0.8 \
+    --init_steps 25 \
+    --inpaint_steps 50 \
+    --seed 4129889 \
+    --batch_size 1 \
+    --save_process
