@@ -65,7 +65,7 @@ def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     }
     return obj_dict, style_dict
 
-def read_prompts_json(json_path:str, prompt_id:int, token_annotation:dict)->List[dict]:
+def read_prompts_json(json_path:str, prompt_id:str, token_annotation:dict)->List[dict]:
     '''
     Read the JSON file containing prompts and extract the necessary information.
     Args:
@@ -128,7 +128,7 @@ def parse_args():
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--backup_images", type=int, default=0, help="Number of additional images to generate for better performance.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
-    parser.add_argument("--prompt_id", type=int, default=None, help="prompt's id in the json file")
+    parser.add_argument("--prompt_id", type=str, default=None, help="prompt's id in the json file")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
     parser.add_argument("--seed", type=int, default=1126, help="Random seed for reproducibility.")

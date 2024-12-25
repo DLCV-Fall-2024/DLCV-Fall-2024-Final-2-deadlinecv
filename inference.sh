@@ -1,7 +1,7 @@
 #!/bin/bash
 python3 inference.py \
     --json $1 \
-    --prompt_id 0 \
+    --prompt_id "0" \
     --special_tokens "<cat2>" "<dog6>" \
     --init_tokens "cat" "cat" \
     --id_tokens "cat" "cat" \
@@ -18,7 +18,7 @@ python3 inference.py \
     --mask_padding 32
 python3 inference.py \
     --json $1 \
-    --prompt_id 1 \
+    --prompt_id "1" \
     --special_tokens "<flower_1>" "<vase>" \
     --init_tokens "white flower" "tall red vase" \
     --id_tokens "flower" "vase" \
@@ -35,7 +35,7 @@ python3 inference.py \
     --mask_padding 32
 python3 inference.py \
     --json $1 \
-    --prompt_id 2 \
+    --prompt_id "2" \
     --special_tokens "<dog>" "<pet_cat1>" "<dog6>" \
     --init_tokens "dog" "cat" "dog" \
     --id_tokens "dog" "cat" "dog" \
@@ -52,7 +52,7 @@ python3 inference.py \
     --mask_padding 32
 python3 inference.py \
     --json $1 \
-    --prompt_id 3 \
+    --prompt_id "3" \
     --special_tokens "<cat2>" "<wearable_glasses>" \
     --init_tokens "grey cat" "brown glasses" \
     --id_tokens "cat" "glasses" \
