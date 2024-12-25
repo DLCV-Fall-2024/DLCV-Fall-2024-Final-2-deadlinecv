@@ -65,12 +65,11 @@ def get_initial_tokens(prompt_token:str, prompt_eval:str)->Tuple[dict, dict]:
     }
     return obj_dict, style_dict
 
-def read_prompts_json(json_path:str, prompt_id:str, token_annotation:dict)->List[dict]:
+def read_prompts_json(json_path:str, token_annotation:dict)->List[dict]:
     '''
     Read the JSON file containing prompts and extract the necessary information.
     Args:
         json_path (str): Path to the JSON file containing prompts.
-        json_id (int): ID for the specific prompt.
         token_annotation (dict): A dictionary containing the annotations for special tokens.
     Returns:
         List[dict]: A list of dictionaries containing the necessary information for each prompt.
@@ -82,32 +81,28 @@ def read_prompts_json(json_path:str, prompt_id:str, token_annotation:dict)->List
         initial_prompts = []
         object_tokens = []
         style_tokens = []
-
-        # extract prompts
-        token_prompt = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
-        special_tokens = data[prompt_id]["token_name"]
-        # get the initial tokens
-        obj_init_tokens, obj_special_tokens, obj_id_tokens = [], [], []
-        style_special_token = None
-        for token in special_tokens:
-            if token in token_annotation["object"]:
-                obj_init_tokens.append(token_annotation["object"][token]["init_token"])
-                obj_id_tokens.append(token_annotation["object"][token]["id_token"])
-                obj_special_tokens.append(token)
-            elif token in token_annotation["style"]:
-                style_special_token = token
-        # replace the object special tokens with initial tokens
-        initial_prompt = token_prompt
-        if (prompt_id == 2):
-            initial_prompt = "Two dogs and a cat near a forest."
-        else:
+        for prompt_id in prompt_ids:
+            # extract prompts
+            token_prompt = data[prompt_id]["prompt"].rstrip('.').replace(">,", ">")
+            special_tokens = data[prompt_id]["token_name"]
+            # get the initial tokens
+            obj_init_tokens, obj_special_tokens, obj_id_tokens = [], [], []
+            style_special_token = None
+            for token in special_tokens:
+                if token in token_annotation["object"]:
+                    obj_init_tokens.append(token_annotation["object"][token]["init_token"])
+                    obj_id_tokens.append(token_annotation["object"][token]["id_token"])
+                    obj_special_tokens.append(token)
+                elif token in token_annotation["style"]:
+                    style_special_token = token
+            # replace the object special tokens with initial tokens
+            initial_prompt = token_prompt
             for init_token, special_token in zip(obj_init_tokens, obj_special_tokens):
                 initial_prompt = initial_prompt.replace(special_token, init_token)
-        # save the results
-        initial_prompts.append(initial_prompt)
-        object_tokens.append({"init_tokens": obj_init_tokens, "special_tokens": obj_special_tokens, "id_tokens": obj_id_tokens})
-        style_tokens.append(style_special_token)
-
+            # save the results
+            initial_prompts.append(initial_prompt)
+            object_tokens.append({"init_tokens": obj_init_tokens, "special_tokens": obj_special_tokens, "id_tokens": obj_id_tokens})
+            style_tokens.append(style_special_token)
         # return the results
         custom_prompts = {
             "id": prompt_ids,
@@ -181,7 +176,21 @@ def parse_args():
     # handle prompts
     if args.json is not None: # read JSON file
         assert args.prompt_id is not None
-        prompt_info = read_prompts_json(args.json, args.prompt_id, token_annotation)
+        with open(args.json, "r") as f:
+            data = json.load(f)
+            initial_prompt = data[args.prompt_id]["prompt"].rstrip('.').replace(">,", ">")
+        if (args.prompt_id == 2):
+            initial_prompt = "Two dogs and a cat near a forest."
+        else:
+            for special_token, init_token in zip(args.special_tokens, args.init_tokens):
+                initial_prompt = initial_prompt.replace(special_token, init_token)
+        prompt_info = {
+            "id": [0],
+            "initial_prompts": [initial_prompt],
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
+            "style_tokens": [args.style_special_token]
+        }
+        # prompt_info = read_prompts_json(args.json, args.prompt_id, token_annotation)
     else: # use the provided prompts
         initial_prompt = args.prompt.rstrip('.').replace(">,", ">")
         for special_token, init_token in zip(args.special_tokens, args.init_tokens):
