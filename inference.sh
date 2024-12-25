@@ -44,9 +44,9 @@ python3 inference.py \
     --seeds 109 101 116 113 137 134 148 149 141 158 \
     --output_dir $2 \
     --inpaint_strength 0.8 \
-    --init_steps 25 \
+    --init_steps 50 \
     --inpaint_steps 50 \
-    --seed 4129889 \
+    --seed 1126 \
     --batch_size 1 \
     --save_process \
     --mask_padding 32
