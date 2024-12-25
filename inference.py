@@ -185,7 +185,7 @@ def parse_args():
             for special_token, init_token in zip(args.special_tokens, args.init_tokens):
                 initial_prompt = initial_prompt.replace(special_token, init_token)
         prompt_info = {
-            "id": [0],
+            "id": [args.prompt_id],
             "initial_prompts": [initial_prompt],
             "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
             "style_tokens": [args.style_special_token]
