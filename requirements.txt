@@ -1,5 +1,6 @@
 torch
 diffusers
+numpy==1.26.4
 transformers==4.45.0
 matplotlib
 accelerate
