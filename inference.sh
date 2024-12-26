@@ -14,7 +14,6 @@ python3 inference.py \
     --inpaint_steps 50 \
     --seed 36 \
     --batch_size 1 \
-    --save_process \
     --mask_padding 32
 python3 inference.py \
     --json $1 \
@@ -31,7 +30,6 @@ python3 inference.py \
     --inpaint_steps 50 \
     --seed 36 \
     --batch_size 1 \
-    --save_process \
     --mask_padding 32
 python3 inference.py \
     --json $1 \
@@ -48,7 +46,6 @@ python3 inference.py \
     --inpaint_steps 50 \
     --seed 1126 \
     --batch_size 1 \
-    --save_process \
     --mask_padding 32
 python3 inference.py \
     --json $1 \
@@ -64,5 +61,4 @@ python3 inference.py \
     --init_steps 25 \
     --inpaint_steps 50 \
     --seed 4129889 \
-    --batch_size 1 \
-    --save_process
+    --batch_size 1
