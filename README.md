@@ -2,8 +2,14 @@
 
 # How to run your code?
 * TODO: Please provide the scripts for TAs to reproduce your results, including training and inference. For example, 
- ## training
- create a new conda environment using  conda3.9.
+## training
+create a new conda environment using  conda3.9.
+for example
+```shell script=
+conda create -n Dlcv_train python =3.9
+conda activate Dlcv_train
+```
+the execute the train script
 ```shell script=
 bash train.sh
 ```
@@ -11,6 +17,12 @@ manually configure the accelerate package in the interactive shell then wait for
 
 ## inference
 create another new conda environment using python3.9
+for example
+```shell script=
+conda create -n Dlcv_inference python =3.9
+conda activate Dlcv_inference
+```
+the execute the inference script
 ```shell script=
 bash inference.sh <Path to prompts.json file in the data> <output image save directory>
 ```
