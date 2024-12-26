@@ -34,9 +34,9 @@ conda activate Dlcv_inference
 
 preparing package
 
-ˋˋˋshell script=
+```shell script=
 pip install -r requirements.txt
-ˋˋˋ
+```
 
 
 the execute the inference script
