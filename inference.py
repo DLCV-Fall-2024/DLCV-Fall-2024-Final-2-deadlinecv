@@ -166,14 +166,6 @@ def parse_args():
         args.dtype = torch.float16
     # make output directory
     os.makedirs(args.output_dir, exist_ok=True)
-    # read token annotations
-    if args.inversion_dir is not None:
-        # assert there is a annotation.json file in args.inversion_dir
-        assert "annotation.json" in os.listdir(args.inversion_dir), "[inference] annotation.json not found in the inversion directory."
-        with open(os.path.join(args.inversion_dir, "annotation.json"), "r") as f:
-            token_annotation = json.load(f)
-    else:
-        token_annotation = {}
     # handle id tokens
     if len(args.id_tokens) != len(args.init_tokens):
         print("[inference] Warning: Number of id tokens should match the number of initial tokens, using the initial tokens as id tokens.")
