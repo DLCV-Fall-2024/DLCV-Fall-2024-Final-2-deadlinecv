@@ -123,6 +123,7 @@ def parse_args():
     parser.add_argument("--image_per_prompt", type=int, default=1, help="Number of images to generate per prompt.")
     parser.add_argument("--backup_images", type=int, default=0, help="Number of additional images to generate for better performance.")
     parser.add_argument("--json", type=str, default=None, help="Path to the JSON file containing prompts. This will override the prompts argument.")
+    parser.add_argument("--prompt_id", type=str, default=None, help="prompt's id in the json file")
     parser.add_argument("--inversion_dir", type=str, default=None, help="Path to the directory containing textual inversions.")
     parser.add_argument("--output_dir", type=str, default="outputs", help="Path to the output directory.")
     parser.add_argument("--seed", type=int, default=1126, help="Random seed for reproducibility.")
@@ -174,7 +175,22 @@ def parse_args():
         args.id_tokens = args.init_tokens
     # handle prompts
     if args.json is not None: # read JSON file
-        prompt_info = read_prompts_json(args.json, token_annotation)
+        assert args.prompt_id is not None
+        with open(args.json, "r") as f:
+            data = json.load(f)
+            initial_prompt = data[args.prompt_id]["prompt"].rstrip('.').replace(">,", ">")
+        if (args.prompt_id == "2"):
+            initial_prompt = "Two little dogs and a cat near a forest."
+        else:
+            for special_token, init_token in zip(args.special_tokens, args.init_tokens):
+                initial_prompt = initial_prompt.replace(special_token, init_token)
+        prompt_info = {
+            "id": [args.prompt_id],
+            "initial_prompts": [initial_prompt],
+            "object_tokens": [{"init_tokens": args.init_tokens, "special_tokens": args.special_tokens, "id_tokens": args.id_tokens}],
+            "style_tokens": [args.style_special_token]
+        }
+        # prompt_info = read_prompts_json(args.json, args.prompt_id, token_annotation)
     else: # use the provided prompts
         initial_prompt = args.prompt.rstrip('.').replace(">,", ">")
         for special_token, init_token in zip(args.special_tokens, args.init_tokens):
