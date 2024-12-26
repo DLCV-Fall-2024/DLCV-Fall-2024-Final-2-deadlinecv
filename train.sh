@@ -1,4 +1,4 @@
-# git clone https://github.com/huggingface/diffusers
+git clone https://github.com/huggingface/diffusers
 cd diffusers
 pip install .
 cd examples
@@ -8,7 +8,7 @@ accelerate config
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/cat2" \
+  --train_data_dir="../../../Data/concept_image/cat2" \
   --learnable_property="object" \
   --placeholder_token="<cat2>" \
   --initializer_token="cat" \
@@ -16,7 +16,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -26,7 +26,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/dog" \
+  --train_data_dir="../../../Data/concept_image/dog" \
   --learnable_property="object" \
   --placeholder_token="<dog>" \
   --initializer_token="dog" \
@@ -34,7 +34,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -44,7 +44,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/dog6" \
+  --train_data_dir="../../../Data/concept_image/dog6" \
   --learnable_property="object" \
   --placeholder_token="<dog6>" \
   --initializer_token="dog" \
@@ -52,7 +52,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -62,7 +62,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/flower_1" \
+  --train_data_dir="../../../Data/concept_image/flower_1" \
   --learnable_property="object" \
   --placeholder_token="<flower_1>" \
   --initializer_token="flower" \
@@ -70,7 +70,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -80,7 +80,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/pet_cat1" \
+  --train_data_dir="../../../Data/concept_image/pet_cat1" \
   --learnable_property="object" \
   --placeholder_token="<pet_cat1>" \
   --initializer_token="cat" \
@@ -88,7 +88,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -98,7 +98,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/vase" \
+  --train_data_dir="../../../Data/concept_image/vase" \
   --learnable_property="object" \
   --placeholder_token="<vase>" \
   --initializer_token="vase" \
@@ -106,7 +106,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -116,7 +116,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/watercolor" \
+  --train_data_dir="../../../Data/concept_image/watercolor" \
   --learnable_property="style" \
   --placeholder_token="<watercolor>" \
   --initializer_token="watercolor" \
@@ -124,7 +124,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
@@ -134,7 +134,7 @@ accelerate launch textual_inversion_sdxl.py \
 
 accelerate launch textual_inversion_sdxl.py \
   --pretrained_model_name_or_path="stabilityai/stable-diffusion-xl-base-1.0" \
-  --train_data_dir="./Data/concept_image/wearable_glasses" \
+  --train_data_dir="../../../Data/concept_image/wearable_glasses" \
   --learnable_property="object" \
   --placeholder_token="<wearable_glasses>" \
   --initializer_token="glasses" \
@@ -142,7 +142,7 @@ accelerate launch textual_inversion_sdxl.py \
   --resolution=768 \
   --train_batch_size=1 \
   --gradient_accumulation_steps=4 \
-  --max_train_steps=1000 \
+  --max_train_steps=1 \
   --learning_rate=5.0e-04 \
   --scale_lr \
   --lr_scheduler="constant" \
