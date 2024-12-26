@@ -2,3 +2,4 @@ torch
 diffusers
 transformers==4.45.0
 matplotlib
+accelerate
