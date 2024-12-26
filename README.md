@@ -3,13 +3,14 @@
 # How to run your code?
 * TODO: Please provide the scripts for TAs to reproduce your results, including training and inference. For example, 
  ## training
- create a new conda environment.
+ create a new conda environment using  conda3.9.
 ```shell script=
 bash train.sh
 ```
 manually configure the accelerate package in the interactive shell then wait for training.
 
 ## inference
+create another new conda environment using python3.9
 ```shell script=
 bash inference.sh <Path to prompts.json file in the data> <output image save directory>
 ```
