@@ -20,7 +20,9 @@ the execute the train script
 bash train.sh
 ```
 
-manually configure the accelerate package in the interactive shell then wait for training.
+**manually configure the accelerate package in the interactive shell** then wait for training.  
+example configuration:  
+![acc_config](image/accelerate_config.png)
 
 ## inference
 
@@ -37,7 +39,6 @@ preparing package
 ```shell script=
 pip install -r requirements.txt
 ```
-
 
 the execute the inference script
 
