@@ -32,6 +32,13 @@ conda create -n Dlcv_inference python=3.9 --yes
 conda activate Dlcv_inference
 ```
 
+preparing package
+
+ˋˋˋshell script=
+pip install -r requirements.txt
+ˋˋˋ
+
+
 the execute the inference script
 
 ```shell script=
