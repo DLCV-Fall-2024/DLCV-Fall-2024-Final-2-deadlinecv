@@ -14,7 +14,7 @@ conda create -n Dlcv_train python=3.9 --yes
 conda activate Dlcv_train
 ```
 
-the execute the train script
+the execute the train script (at `DLCV-Fall-2024-Final-2-deadlinecv` folder)
 
 ```shell script=
 bash train.sh
@@ -40,7 +40,7 @@ preparing package
 pip install -r requirements.txt
 ```
 
-the execute the inference script
+the execute the inference script (at `DLCV-Fall-2024-Final-2-deadlinecv` folder)
 
 ```shell script=
 bash inference.sh <Path to prompts.json file in the data> <output image save directory>
